@@ -93,6 +93,7 @@ LLAMA_STANDARD_CONFIGS = {
         'rms_norm_eps': 1e-6,
         'use_cache': True,
         'tie_word_embeddings': False,
+        'use_hf_rotary_emb': True,
     },
     '13bcode': {
         'vocab_size': 32016,
@@ -381,7 +382,11 @@ class LLaMAConfig(PretrainedConfig):
 
     @staticmethod
     def get_weight_decay_exclusions():
-        return tuple()
+        # no bias to exclude
+        return (
+            'transformer/wte/embedding',
+            'ln_f/kernel', 'ffn_norm/kernel', 'attention_norm/kernel'
+        )
 
     @staticmethod
     def rng_keys():
