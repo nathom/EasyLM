@@ -93,7 +93,6 @@ LLAMA_STANDARD_CONFIGS = {
         'rms_norm_eps': 1e-6,
         'use_cache': True,
         'tie_word_embeddings': False,
-        'use_hf_rotary_emb': True,
     },
     '13bcode': {
         'vocab_size': 32016,
