@@ -106,8 +106,9 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    if llama_config.vocab_size < wrapped_dataset.vocab_size:
-        llama_config.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    # if llama_config.vocab_size < wrapped_dataset.vocab_size:
+    #     llama_config.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    
 
     model = FlaxLLaMAForCausalLMModule(
         llama_config, dtype=get_float_dtype_by_name(FLAGS.dtype)
@@ -284,6 +285,7 @@ def main(argv):
                     }
                 # just measuring the train step time.
                 start_time = time.time()
+                print(train_state)
                 train_state, sharded_rng, metrics = sharded_train_step(
                     train_state, sharded_rng, batch
                 )
