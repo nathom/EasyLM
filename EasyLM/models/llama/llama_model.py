@@ -227,7 +227,7 @@ LLAMA_STANDARD_CONFIGS = {
         'tie_word_embeddings': False,
     },
     '8b3': {
-        'vocab_size': 128256,
+        'vocab_size': 128257,
         'hidden_size': 4096,
         'intermediate_size': 14336,
         'num_hidden_layers': 32,
@@ -244,7 +244,7 @@ LLAMA_STANDARD_CONFIGS = {
         'use_hf_rotary_emb': False
     },
     '70b': {
-        'vocab_size': 128256,
+        'vocab_size': 128257,
         'hidden_size': 4096,
         'intermediate_size': 28672,
         'num_hidden_layers': 80,
