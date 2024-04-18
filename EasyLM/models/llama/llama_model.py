@@ -226,6 +226,40 @@ LLAMA_STANDARD_CONFIGS = {
         'use_cache': True,
         'tie_word_embeddings': False,
     },
+    '8b3': {
+        'vocab_size': 128256,
+        'hidden_size': 4096,
+        'intermediate_size': 14336,
+        'num_hidden_layers': 32,
+        'num_attention_heads': 32,
+        'num_key_value_heads': 8,
+        'max_sequence_length': 8192,
+        'initializer_range': 0.02,
+        'rms_norm_eps': 1e-5,
+        'use_cache': True,
+        'tie_word_embeddings': False,
+        'rope_theta': 500000,
+        'bos_token_id': 128000,
+        'eos_token_id': 128001,
+        'use_hf_rotary_emb': False
+    },
+    '70b': {
+        'vocab_size': 128256,
+        'hidden_size': 4096,
+        'intermediate_size': 28672,
+        'num_hidden_layers': 80,
+        'num_attention_heads': 64,
+        'num_key_value_heads': 8,
+        'max_sequence_length': 8192,
+        'initializer_range': 0.02,
+        'rms_norm_eps': 1e-5,
+        'use_cache': True,
+        'tie_word_embeddings': False,
+        'rope_theta': 500000,
+        'bos_token_id': 128000,
+        'eos_token_id': 128001,
+        'use_hf_rotary_emb': False
+    },
 }
 
 
@@ -1600,9 +1634,9 @@ if __name__ == '__main__':
     from EasyLM.checkpoint import StreamingCheckpointer
     from EasyLM.jax_utils import JaxRNG, next_rng
     import torch
-    tokenizer = AutoTokenizer.from_pretrained('CodeLlama-34b-hf')
-    hf_model = AutoModelForCausalLM.from_pretrained('CodeLlama-34b-hf')
-    llama_config = LLaMAConfig.load_config('30b2')
+    tokenizer = AutoTokenizer.from_pretrained('Meta-Llama-3-8B')
+    hf_model = AutoModelForCausalLM.from_pretrained('Meta-Llama-3-8B')
+    llama_config = LLaMAConfig.load_config('8b3')
     jax_model = FlaxLLaMAForCausalLMModule(
         llama_config, dtype=jnp.float32
     )
@@ -1610,7 +1644,7 @@ if __name__ == '__main__':
         StreamingCheckpointer.get_default_config(), 'output',
         enable=jax.process_index() == 0,
     )
-    _, restored_params = checkpointer.load_trainstate_checkpoint('params::codellama_30b')
+    _, restored_params = checkpointer.load_trainstate_checkpoint('params::llama_3_8b_torch')
     inputs = tokenizer("What is 2+2?", return_tensors='jax').input_ids
     hf_logits = hf_model(torch.tensor(np.array(inputs))).logits
     jax_logits = jax_model.apply(
