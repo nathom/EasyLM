@@ -1,5 +1,6 @@
 import pprint
 import math
+import os
 import time
 
 from tqdm import tqdm, trange
@@ -65,7 +66,7 @@ def main(argv):
     )
     set_random_seed(FLAGS.seed)
 
-    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer)
+    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None))
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
