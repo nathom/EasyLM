@@ -668,7 +668,6 @@ class TuluJsonTorchDataset(JsonTorchDataset):
         input_tokens = input_tokens + [self.tokenizer.pad_token_id] * (self.config.seq_length - len(input_tokens))
         target_tokens = target_tokens + [self.tokenizer.pad_token_id] * (self.config.seq_length - len(target_tokens))
         loss_masks = loss_masks + [0.0] * (self.config.seq_length - len(loss_masks))
-        import pdb; pdb.set_trace()
         return {
             "input_tokens": np.array(input_tokens, dtype=np.int32),
             "target_tokens": np.array(target_tokens, dtype=np.int32),
