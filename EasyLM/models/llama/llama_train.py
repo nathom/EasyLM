@@ -285,7 +285,6 @@ def main(argv):
                     }
                 # just measuring the train step time.
                 start_time = time.time()
-                print(train_state)
                 train_state, sharded_rng, metrics = sharded_train_step(
                     train_state, sharded_rng, batch
                 )
