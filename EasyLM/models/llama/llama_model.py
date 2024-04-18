@@ -1632,7 +1632,7 @@ class LLaMATokenizer(PreTrainedTokenizer):
 from transformers import LlamaTokenizerFast
 class LlamaTokenizerFast(LlamaTokenizerFast):
     def encode(self, text):
-        return self(text).input_ids
+        return self(text, add_special_tokens=False).input_ids
 
 
 # debug model by comparing to hf transformers

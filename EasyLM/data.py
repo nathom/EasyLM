@@ -327,9 +327,9 @@ class HFPromptDataset(object):
 
     def _process_sample(self, sample):
         prompt = self.config.policy_prefix_tokens + sample['instruction'] + self.config.policy_suffix_tokens
-        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first')
+        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first', add_special_tokens=False)
         reward_prompt = self.config.reward_prefix_tokens + sample['instruction'] + self.config.reward_suffix_tokens
-        reward_prompt_tok = self.tokenizer(reward_prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first')
+        reward_prompt_tok = self.tokenizer(reward_prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first', add_special_tokens=False)
         return {
             "prompt_input_ids": np.array(prompt_tok.input_ids, dtype=np.int32),
             "prompt_attn_mask": np.array(prompt_tok.attention_mask, dtype=np.int32),
@@ -668,6 +668,7 @@ class TuluJsonTorchDataset(JsonTorchDataset):
         input_tokens = input_tokens + [self.tokenizer.pad_token_id] * (self.config.seq_length - len(input_tokens))
         target_tokens = target_tokens + [self.tokenizer.pad_token_id] * (self.config.seq_length - len(target_tokens))
         loss_masks = loss_masks + [0.0] * (self.config.seq_length - len(loss_masks))
+        import pdb; pdb.set_trace()
         return {
             "input_tokens": np.array(input_tokens, dtype=np.int32),
             "target_tokens": np.array(target_tokens, dtype=np.int32),
@@ -701,13 +702,15 @@ class TuluJsonTorchDataset(JsonTorchDataset):
             example_text,
             return_tensors='pt',
             max_length=max_seq_length,
-            truncation=True
+            truncation=True,
+            add_special_tokens=False
         )
         untruncated_input_ids = tokenizer(
             example_text,
             return_tensors='pt',
             max_length=max_seq_length,
-            truncation=False
+            truncation=False,
+            add_special_tokens=False
         )
         truncated = tokenized_example.input_ids.shape[1] != untruncated_input_ids.input_ids.shape[1]
         input_ids = tokenized_example.input_ids
@@ -721,7 +724,7 @@ class TuluJsonTorchDataset(JsonTorchDataset):
                     message_start_idx = 0
                 else:
                     message_start_idx = tokenizer(
-                        _concat_messages(messages[:message_idx]), return_tensors='pt', max_length=max_seq_length, truncation=True
+                        _concat_messages(messages[:message_idx]), return_tensors='pt', max_length=max_seq_length, truncation=True, add_special_tokens=False
                     ).input_ids.shape[1]
                 if message_idx < len(messages) - 1 and messages[message_idx+1]["role"] == "assistant":
                     # here we also ignore the role of the assistant
@@ -732,7 +735,8 @@ class TuluJsonTorchDataset(JsonTorchDataset):
                     messages_so_far,
                     return_tensors='pt',
                     max_length=max_seq_length,
-                    truncation=True
+                    truncation=True,
+                    add_special_tokens=False
                 ).input_ids.shape[1]
                 if message_start_idx >= labels.shape[1]:
                     print("Warning, message got truncated.")
@@ -830,13 +834,13 @@ class TuluPromptDataset(JsonTorchDataset):
             return message_text
     
         prompt = _concat_messages_to_prompt(messages)
-        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first')
+        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first', add_special_tokens=False)
         return {
             "prompt_input_ids": np.array(prompt_tok.input_ids, dtype=np.int32),
             "prompt_attn_mask": np.array(prompt_tok.attention_mask, dtype=np.int32),
             "reward_prompt_input_ids": np.array(prompt_tok.input_ids, dtype=np.int32),
             "reward_prompt_attn_mask": np.array(prompt_tok.attention_mask, dtype=np.int32),
-            "truncated": True if len(self.tokenizer(prompt).input_ids) > self.config.seq_length else False,
+            "truncated": True if len(self.tokenizer(prompt, add_special_tokens=False).input_ids) > self.config.seq_length else False,
         }
     
 
@@ -855,14 +859,9 @@ def pad_out_to_full_batch(desired_batch_size, batch):
     return batch
 
 if __name__ == "__main__":
-    from EasyLM.models.llama.llama_model import LLaMATokenizer
-    tokenizer = LLaMATokenizer(
-        vocab_file='gs://hamishi-dev/easylm/llama/tokenizer.model',
-        add_bos_token=False,
-        add_eos_token=False,
-        padding_side='left',
-        truncation_side='right',
-    )
+    from EasyLM.models.llama.llama_model import LlamaTokenizerFast
+    tokenizer = LlamaTokenizerFast.from_pretrained('Meta-Llama-3-8B')
+    tokenizer.pad_token_id = 128255
     text_processor = TextProcessor({'fields': '[prompt],completion'}, tokenizer)
     dataset = TuluJsonTorchDataset(
         TuluJsonTorchDataset.get_default_config(

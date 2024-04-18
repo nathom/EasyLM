@@ -67,6 +67,8 @@ def main(argv):
     set_random_seed(FLAGS.seed)
 
     tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None))
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = 128255  # TODO: dont hardcode pad token id.
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
