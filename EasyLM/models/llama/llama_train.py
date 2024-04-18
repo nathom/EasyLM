@@ -22,7 +22,7 @@ from EasyLM.jax_utils import (
     make_shard_and_gather_fns, with_sharding_constraint, average_metrics
 )
 from EasyLM.models.llama.llama_model import (
-    LLaMAConfig, FlaxLLaMAForCausalLMModule
+    LLaMAConfig, FlaxLLaMAForCausalLMModule, LlamaTokenizerFast
 )
 
 
@@ -41,7 +41,7 @@ FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     save_milestone_freq=0,
     eval_steps=0,
     num_epochs=0,
-    tokenizer=LLaMAConfig.get_tokenizer_config(),
+    tokenizer='', # now, we just use the HF tokenizers.
     train_dataset=DatasetFactory.get_default_config(),
     eval_dataset=DatasetFactory.get_default_config(),
     optimizer=OptimizerFactory.get_default_config(),
@@ -65,7 +65,7 @@ def main(argv):
     )
     set_random_seed(FLAGS.seed)
 
-    tokenizer = LLaMAConfig.get_tokenizer(FLAGS.tokenizer)
+    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer)
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))

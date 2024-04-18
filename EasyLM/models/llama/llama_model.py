@@ -1628,6 +1628,13 @@ class LLaMATokenizer(PreTrainedTokenizer):
             return len(token_ids_0 + eos) * [0]
         return len(token_ids_0 + eos + token_ids_1 + eos) * [0]
 
+
+from transformers import LlamaTokenizerFast
+class LlamaTokenizerFast(LlamaTokenizerFast):
+    def encode(self, text):
+        return self(text).input_ids
+
+
 # debug model by comparing to hf transformers
 if __name__ == '__main__':
     from transformers import AutoModelForCausalLM, AutoTokenizer
