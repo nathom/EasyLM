@@ -69,7 +69,7 @@ def main(argv):
     tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None))
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 128255  # TODO: dont hardcode pad token id.
-    dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
+    dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer, seed=FLAGS.seed)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
 
@@ -283,7 +283,6 @@ def main(argv):
                         'loss_masks': batch['loss_masks'],
                         'target_tokens': batch['target_tokens'],
                     }
-                print(batch)
                 # just measuring the train step time.
                 start_time = time.time()
                 train_state, sharded_rng, metrics = sharded_train_step(

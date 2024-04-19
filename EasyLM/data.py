@@ -38,7 +38,7 @@ class DatasetFactory(object):
         return config
 
     @classmethod
-    def load_dataset(cls, config, tokenizer, **kwargs):
+    def load_dataset(cls, config, tokenizer, seed=42, **kwargs):
         config = cls.get_default_config(config)
         text_processor = TextProcessor(config.text_processor, tokenizer)
         if config.type == 'huggingface':
@@ -48,7 +48,7 @@ class DatasetFactory(object):
         elif config.type == 'json':
             return JsonDataset(config.json_dataset, tokenizer, text_processor, **kwargs)
         elif config.type == 'json_torch':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = JsonTorchDataset(config.json_torch_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -59,7 +59,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'tulu_json_torch':
-            torch.manual_seed(42) # keep dataloader order the same across devices.
+            torch.manual_seed(seed) # keep dataloader order the same across devices.
             dataset = TuluJsonTorchDataset(config.json_torch_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -70,7 +70,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'preference_json_torch':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = PreferenceDataset(config.json_torch_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -81,7 +81,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'hf_prompt':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = HFPromptDataset(config.hf_prompt_dataset, tokenizer, **kwargs)
             return DataLoader(
                 dataset,
@@ -92,7 +92,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'tulu_prompt':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = TuluPromptDataset(config.tulu_prompt_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -865,9 +865,9 @@ if __name__ == "__main__":
     dataset = TuluJsonTorchDataset(
         TuluJsonTorchDataset.get_default_config(
             {
-                'path': 'debug_sft.jsonl',
-                "seq_length": 4096,
-                "num_workers": 1,
+                'hf_name': 'allenai/tulu-v2-sft-mixture',
+                "seq_length": 8192,
+                "num_workers": 16,
             }), tokenizer, text_processor)
     loader = DataLoader(
         dataset,
