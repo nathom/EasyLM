@@ -283,6 +283,7 @@ def main(argv):
                         'loss_masks': batch['loss_masks'],
                         'target_tokens': batch['target_tokens'],
                     }
+                print(batch)
                 # just measuring the train step time.
                 start_time = time.time()
                 train_state, sharded_rng, metrics = sharded_train_step(
