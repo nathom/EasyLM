@@ -278,7 +278,6 @@ def cross_entropy_loss_and_accuracy(logits, tokens, valid=None):
         'accuracy': accuracy,
         'token_logprob_sum': jnp.sum(token_log_prob),
         'valid_sum': jnp.sum(valid),
-        'logits_nan': jnp.any(jnp.isnan(logits)),
     }
     return loss, metrics
 

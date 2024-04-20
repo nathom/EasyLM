@@ -20,6 +20,7 @@ import sentencepiece as spm
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
 from transformers.tokenization_utils import PreTrainedTokenizer
+from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
 from transformers.modeling_flax_outputs import FlaxBaseModelOutput, FlaxCausalLMOutput
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from transformers.utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging
@@ -1629,8 +1630,7 @@ class LLaMATokenizer(PreTrainedTokenizer):
         return len(token_ids_0 + eos + token_ids_1 + eos) * [0]
 
 
-from transformers import LlamaTokenizerFast
-class LlamaTokenizerFast(LlamaTokenizerFast):
+class LlamaTokenizerFast(PreTrainedTokenizerFast):
     def encode(self, text):
         return self(text, add_special_tokens=False).input_ids
 

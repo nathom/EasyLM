@@ -282,16 +282,6 @@ def main(argv):
                         'loss_masks': batch['loss_masks'],
                         'target_tokens': batch['target_tokens'],
                     }
-                if step == 415:
-                    print('--')
-                    print(jax.device_get(batch['input_tokens']).tolist())
-                    print('--')
-                    print(jax.device_get(batch['attention_mask']).tolist())
-                    print('--')
-                    print(jax.device_get(batch['loss_masks']).tolist())
-                    print('--')
-                    print(jax.device_get(batch['target_tokens']).tolist())
-                    print('--')
                 # just measuring the train step time.
                 start_time = time.time()
                 train_state, sharded_rng, metrics = sharded_train_step(
