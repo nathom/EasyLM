@@ -244,7 +244,7 @@ LLAMA_STANDARD_CONFIGS = {
         'eos_token_id': 128001,
         'use_hf_rotary_emb': False
     },
-    '70b': {
+    '70b3': {
         'vocab_size': 128256,
         'hidden_size': 4096,
         'intermediate_size': 28672,
