@@ -185,6 +185,7 @@ def main(argv):
 
     print("Initializing training state and pjitting...")
     train_state_shapes = jax.eval_shape(init_fn, next_rng())
+    print(train_state_shapes)
     train_state_partition = match_partition_rules(
         LLaMAConfig.get_partition_rules(), train_state_shapes
     )
