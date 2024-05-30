@@ -106,6 +106,8 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
+
+    print(llama_config)
     # if llama_config.vocab_size < wrapped_dataset.vocab_size:
     #     llama_config.update(dict(vocab_size=wrapped_dataset.vocab_size))
     
