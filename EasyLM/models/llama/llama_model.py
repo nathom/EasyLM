@@ -246,7 +246,7 @@ LLAMA_STANDARD_CONFIGS = {
     },
     '70b3': {
         'vocab_size': 128256,
-        'hidden_size': 4096,
+        'hidden_size': 8192,
         'intermediate_size': 28672,
         'num_hidden_layers': 80,
         'num_attention_heads': 64,
@@ -1641,9 +1641,9 @@ if __name__ == '__main__':
     from EasyLM.checkpoint import StreamingCheckpointer
     from EasyLM.jax_utils import JaxRNG, next_rng
     import torch
-    tokenizer = AutoTokenizer.from_pretrained('Meta-Llama-3-8B')
-    hf_model = AutoModelForCausalLM.from_pretrained('Meta-Llama-3-8B')
-    llama_config = LLaMAConfig.load_config('8b3')
+    tokenizer = AutoTokenizer.from_pretrained('../Meta-Llama-3-70B')
+    hf_model = AutoModelForCausalLM.from_pretrained('../Meta-Llama-3-70B')
+    llama_config = LLaMAConfig.load_config('70b3')
     jax_model = FlaxLLaMAForCausalLMModule(
         llama_config, dtype=jnp.float32
     )
@@ -1651,7 +1651,7 @@ if __name__ == '__main__':
         StreamingCheckpointer.get_default_config(), 'output',
         enable=jax.process_index() == 0,
     )
-    _, restored_params = checkpointer.load_trainstate_checkpoint('params::llama_3_8b_torch')
+    _, restored_params = checkpointer.load_trainstate_checkpoint('params::llama_3_70b_fp16')
     inputs = tokenizer("What is 2+2?", return_tensors='jax').input_ids
     hf_logits = hf_model(torch.tensor(np.array(inputs))).logits
     jax_logits = jax_model.apply(

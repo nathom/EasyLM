@@ -107,7 +107,6 @@ def main(argv):
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
 
-    print(llama_config)
     # if llama_config.vocab_size < wrapped_dataset.vocab_size:
     #     llama_config.update(dict(vocab_size=wrapped_dataset.vocab_size))
     
@@ -185,7 +184,6 @@ def main(argv):
 
     print("Initializing training state and pjitting...")
     train_state_shapes = jax.eval_shape(init_fn, next_rng())
-    print(train_state_shapes)
     train_state_partition = match_partition_rules(
         LLaMAConfig.get_partition_rules(), train_state_shapes
     )
