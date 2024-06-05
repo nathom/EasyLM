@@ -105,7 +105,7 @@ LLAMA_STANDARD_CONFIGS = {
         'n_layers': 80,
         'n_heads': 64,
         'n_kv_heads': 8,
-        'norm_eps': 1e-6,
+        'norm_eps': 1e-5,
     }
 }
 
