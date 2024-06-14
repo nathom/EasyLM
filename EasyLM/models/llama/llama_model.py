@@ -1631,7 +1631,17 @@ class LLaMATokenizer(PreTrainedTokenizer):
 
 
 class LlamaTokenizerFast(PreTrainedTokenizerFast):
+    def __init__(
+        self,
+        add_bos_token=True,
+        **kwargs,
+    ):
+        self.add_bos_token = add_bos_token
+        super().__init__(**kwargs)
+        
     def encode(self, text):
+        if self.add_bos_token:
+            text = self.bos_token + text
         return self(text, add_special_tokens=False).input_ids
 
 
