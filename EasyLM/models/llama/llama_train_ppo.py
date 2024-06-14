@@ -3,6 +3,7 @@ import math
 import time
 from tqdm import tqdm, trange
 import copy
+import os
 
 import mlxu
 import jax
