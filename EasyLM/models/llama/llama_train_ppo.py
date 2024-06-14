@@ -24,7 +24,7 @@ from EasyLM.jax_utils import (
     with_sharding_constraint
 )
 from EasyLM.models.llama.llama_model import (
-    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression
+    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression, LlamaTokenizerFast
 )
 from transformers import GenerationConfig
 
@@ -50,7 +50,7 @@ FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     log_freq=1,
     save_model_freq=0,
     save_milestone_freq=0,
-    tokenizer=LLaMAConfig.get_tokenizer_config(),
+    tokenizer='',
     llama=LLaMAConfig.get_default_config(),
     train_dataset=DatasetFactory.get_default_config(),
     eval_dataset=DatasetFactory.get_default_config(),
@@ -332,7 +332,9 @@ def main(argv):
     set_random_seed(FLAGS.seed)
 
     print("Loading dataset...")
-    tokenizer = LLaMAConfig.get_tokenizer(FLAGS.tokenizer, padding_side='left', truncation_side='left')
+    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None))
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = 128255  # TODO: dont hardcode pad token id.
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
@@ -372,8 +374,8 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    if llama_config_policy.vocab_size < wrapped_dataset.vocab_size:
-        llama_config_policy.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    # if llama_config_policy.vocab_size < wrapped_dataset.vocab_size:
+    #     llama_config_policy.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
     if FLAGS.load_llama_config_reward != '':
         llama_config_reward = LLaMAConfig.load_config(FLAGS.load_llama_config_reward)
@@ -385,8 +387,8 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    if llama_config_reward.vocab_size < wrapped_dataset.vocab_size:
-        llama_config_reward.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    # if llama_config_reward.vocab_size < wrapped_dataset.vocab_size:
+    #     llama_config_reward.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
     policy_model = FlaxLLaMAForCausalLM(llama_config_policy, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
     value_model = FlaxLLaMAForTokenRegression(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
