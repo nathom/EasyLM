@@ -333,7 +333,8 @@ def main(argv):
     set_random_seed(FLAGS.seed)
 
     print("Loading dataset...")
-    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None))
+    # make sure to left-pad for generation.
+    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 128255  # TODO: dont hardcode pad token id.
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
