@@ -347,8 +347,13 @@ def main(argv):
     steps_per_epoch = steps_per_epoch if FLAGS.max_steps_per_epoch == 0 else min(steps_per_epoch, FLAGS.max_steps_per_epoch)
     total_steps = FLAGS.num_epochs * steps_per_epoch
     completion_batch_size = prompt_batch_size * FLAGS.rollouts_per_prompt
-    assert completion_batch_size % (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) == 0
-    grad_updates_per_step = completion_batch_size // (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) * FLAGS.ppo_epochs
+    if (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) <= completion_batch_size:
+        assert completion_batch_size % (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) == 0
+        grad_updates_per_step = completion_batch_size // (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) * FLAGS.ppo_epochs
+    else:
+        # e.g. we are doing multiple completion rounds to accumulate over.
+        assert (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) % completion_batch_size == 0
+        grad_updates_per_step = 1 # hacky.
     grad_updates_per_epoch = steps_per_epoch * grad_updates_per_step
     total_grad_updates = total_steps * grad_updates_per_step
     lr_warmup_grad_updates = math.ceil(FLAGS.warmup_epochs * grad_updates_per_epoch)
