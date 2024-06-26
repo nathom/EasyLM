@@ -98,6 +98,8 @@ LLAMA_STANDARD_CONFIGS = {
         'n_heads': 32,
         'n_kv_heads': 8,
         'norm_eps': 1e-6,
+        'vocab_size': 128256,
+        'rope_theta': 500000,
     },
     '70b3': {
         'dim': 8192,
@@ -106,6 +108,8 @@ LLAMA_STANDARD_CONFIGS = {
         'n_heads': 64,
         'n_kv_heads': 8,
         'norm_eps': 1e-5,
+        'vocab_size': 128256,
+        'rope_theta': 500000,
     }
 }
 
@@ -228,6 +232,8 @@ def write_model(loaded, model_path, model_size, is_reward_model=False):
         num_hidden_layers=params["n_layers"],
         rms_norm_eps=params["norm_eps"],
         num_key_value_heads=params.get("n_kv_heads", params["n_heads"]),
+        vocab_size=params.get("vocab_size", 32000),  # default to llama 2 size
+        rope_theta=params.get("rope_theta", 100000,) # default to llama 2 size
     )
     # Set the number of labels to 1 for reward models.
     if is_reward_model:
