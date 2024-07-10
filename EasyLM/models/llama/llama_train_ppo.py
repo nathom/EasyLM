@@ -52,6 +52,7 @@ FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     save_model_freq=0,
     save_milestone_freq=0,
     tokenizer='',
+    tokenizer_pad_token_id=128255,
     llama=LLaMAConfig.get_default_config(),
     train_dataset=DatasetFactory.get_default_config(),
     eval_dataset=DatasetFactory.get_default_config(),
@@ -336,7 +337,7 @@ def main(argv):
     # make sure to left-pad for generation.
     tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 128255  # TODO: dont hardcode pad token id.
+        tokenizer.pad_token_id = FLAGS.tokenizer_pad_token_id
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
