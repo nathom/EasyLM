@@ -20,6 +20,7 @@ import sentencepiece as spm
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
 from transformers.tokenization_utils import PreTrainedTokenizer
+from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
 from transformers.modeling_flax_outputs import FlaxBaseModelOutput, FlaxCausalLMOutput
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from transformers.utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging
@@ -226,6 +227,40 @@ LLAMA_STANDARD_CONFIGS = {
         'use_cache': True,
         'tie_word_embeddings': False,
     },
+    '8b3': {
+        'vocab_size': 128256,
+        'hidden_size': 4096,
+        'intermediate_size': 14336,
+        'num_hidden_layers': 32,
+        'num_attention_heads': 32,
+        'num_key_value_heads': 8,
+        'max_sequence_length': 8192,
+        'initializer_range': 0.02,
+        'rms_norm_eps': 1e-5,
+        'use_cache': True,
+        'tie_word_embeddings': False,
+        'rope_theta': 500000,
+        'bos_token_id': 128000,
+        'eos_token_id': 128001,
+        'use_hf_rotary_emb': False
+    },
+    '70b3': {
+        'vocab_size': 128256,
+        'hidden_size': 8192,
+        'intermediate_size': 28672,
+        'num_hidden_layers': 80,
+        'num_attention_heads': 64,
+        'num_key_value_heads': 8,
+        'max_sequence_length': 8192,
+        'initializer_range': 0.02,
+        'rms_norm_eps': 1e-5,
+        'use_cache': True,
+        'tie_word_embeddings': False,
+        'rope_theta': 500000,
+        'bos_token_id': 128000,
+        'eos_token_id': 128001,
+        'use_hf_rotary_emb': False
+    },
 }
 
 
@@ -381,7 +416,11 @@ class LLaMAConfig(PretrainedConfig):
 
     @staticmethod
     def get_weight_decay_exclusions():
-        return tuple()
+        # no bias to exclude
+        return (
+            'transformer/wte/embedding',
+            'ln_f/kernel', 'ffn_norm/kernel', 'attention_norm/kernel'
+        )
 
     @staticmethod
     def rng_keys():
@@ -645,8 +684,8 @@ class FlaxLLaMAAttention(nn.Module):
             position_ids_expanded = position_ids[:, None, :].astype(jnp.float32)
             freqs = (inv_freq_expanded.astype(jnp.float32) @ position_ids_expanded.astype(jnp.float32)).transpose([0, 2, 1])
             emb = jnp.concatenate((freqs, freqs), axis=-1)
-            cos = np.cos(emb)
-            sin = np.sin(emb)
+            cos = jnp.cos(emb)
+            sin = jnp.sin(emb)
             xq = xq.transpose(0, 2, 1, 3)
             xk = xk.transpose(0, 2, 1, 3)
             xq, xk = apply_hf_style_rotary_emb(xq, xk, cos, sin)
@@ -1590,15 +1629,31 @@ class LLaMATokenizer(PreTrainedTokenizer):
             return len(token_ids_0 + eos) * [0]
         return len(token_ids_0 + eos + token_ids_1 + eos) * [0]
 
+
+class LlamaTokenizerFast(PreTrainedTokenizerFast):
+    def __init__(
+        self,
+        add_bos_token=True,
+        **kwargs,
+    ):
+        self.add_bos_token = add_bos_token
+        super().__init__(**kwargs)
+        
+    def encode(self, text):
+        if self.add_bos_token:
+            text = self.bos_token + text
+        return self(text, add_special_tokens=False).input_ids
+
+
 # debug model by comparing to hf transformers
 if __name__ == '__main__':
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from EasyLM.checkpoint import StreamingCheckpointer
     from EasyLM.jax_utils import JaxRNG, next_rng
     import torch
-    tokenizer = AutoTokenizer.from_pretrained('CodeLlama-34b-hf')
-    hf_model = AutoModelForCausalLM.from_pretrained('CodeLlama-34b-hf')
-    llama_config = LLaMAConfig.load_config('30b2')
+    tokenizer = AutoTokenizer.from_pretrained('../Meta-Llama-3-70B')
+    hf_model = AutoModelForCausalLM.from_pretrained('../Meta-Llama-3-70B')
+    llama_config = LLaMAConfig.load_config('70b3')
     jax_model = FlaxLLaMAForCausalLMModule(
         llama_config, dtype=jnp.float32
     )
@@ -1606,7 +1661,7 @@ if __name__ == '__main__':
         StreamingCheckpointer.get_default_config(), 'output',
         enable=jax.process_index() == 0,
     )
-    _, restored_params = checkpointer.load_trainstate_checkpoint('params::codellama_30b')
+    _, restored_params = checkpointer.load_trainstate_checkpoint('params::llama_3_70b_fp16')
     inputs = tokenizer("What is 2+2?", return_tensors='jax').input_ids
     hf_logits = hf_model(torch.tensor(np.array(inputs))).logits
     jax_logits = jax_model.apply(

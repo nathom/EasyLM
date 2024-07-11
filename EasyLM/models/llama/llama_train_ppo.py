@@ -3,6 +3,7 @@ import math
 import time
 from tqdm import tqdm, trange
 import copy
+import os
 
 import mlxu
 import jax
@@ -24,7 +25,7 @@ from EasyLM.jax_utils import (
     with_sharding_constraint
 )
 from EasyLM.models.llama.llama_model import (
-    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression
+    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression, LlamaTokenizerFast
 )
 from transformers import GenerationConfig
 
@@ -50,7 +51,8 @@ FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     log_freq=1,
     save_model_freq=0,
     save_milestone_freq=0,
-    tokenizer=LLaMAConfig.get_tokenizer_config(),
+    tokenizer='',
+    tokenizer_pad_token_id=128255,
     llama=LLaMAConfig.get_default_config(),
     train_dataset=DatasetFactory.get_default_config(),
     eval_dataset=DatasetFactory.get_default_config(),
@@ -332,7 +334,10 @@ def main(argv):
     set_random_seed(FLAGS.seed)
 
     print("Loading dataset...")
-    tokenizer = LLaMAConfig.get_tokenizer(FLAGS.tokenizer, padding_side='left', truncation_side='left')
+    # make sure to left-pad for generation.
+    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = FLAGS.tokenizer_pad_token_id
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
@@ -343,8 +348,13 @@ def main(argv):
     steps_per_epoch = steps_per_epoch if FLAGS.max_steps_per_epoch == 0 else min(steps_per_epoch, FLAGS.max_steps_per_epoch)
     total_steps = FLAGS.num_epochs * steps_per_epoch
     completion_batch_size = prompt_batch_size * FLAGS.rollouts_per_prompt
-    assert completion_batch_size % (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) == 0
-    grad_updates_per_step = completion_batch_size // (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) * FLAGS.ppo_epochs
+    if (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) <= completion_batch_size:
+        assert completion_batch_size % (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) == 0
+        grad_updates_per_step = completion_batch_size // (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) * FLAGS.ppo_epochs
+    else:
+        # e.g. we are doing multiple completion rounds to accumulate over.
+        assert (FLAGS.mini_batch_size * FLAGS.optimizer.accumulate_gradient_steps) % completion_batch_size == 0
+        grad_updates_per_step = 1 # hacky.
     grad_updates_per_epoch = steps_per_epoch * grad_updates_per_step
     total_grad_updates = total_steps * grad_updates_per_step
     lr_warmup_grad_updates = math.ceil(FLAGS.warmup_epochs * grad_updates_per_epoch)
@@ -372,8 +382,8 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    if llama_config_policy.vocab_size < wrapped_dataset.vocab_size:
-        llama_config_policy.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    # if llama_config_policy.vocab_size < wrapped_dataset.vocab_size:
+    #     llama_config_policy.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
     if FLAGS.load_llama_config_reward != '':
         llama_config_reward = LLaMAConfig.load_config(FLAGS.load_llama_config_reward)
@@ -385,8 +395,8 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    if llama_config_reward.vocab_size < wrapped_dataset.vocab_size:
-        llama_config_reward.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    # if llama_config_reward.vocab_size < wrapped_dataset.vocab_size:
+    #     llama_config_reward.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
     policy_model = FlaxLLaMAForCausalLM(llama_config_policy, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
     value_model = FlaxLLaMAForTokenRegression(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)

@@ -34,6 +34,8 @@ tasks:
         value: true
       - name: OPENAI_API_KEY
         secret: openai_api_key
+      - name: IS_ALPACA_EVAL_2
+        value: False
     datasets:
       - mountPath: /data/
         source:

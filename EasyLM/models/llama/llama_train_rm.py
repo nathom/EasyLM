@@ -5,6 +5,7 @@ WIP!!!
 import pprint
 import math
 import time
+import os
 
 from tqdm import tqdm, trange
 import mlxu
@@ -27,7 +28,7 @@ from EasyLM.jax_utils import (
     with_sharding_constraint
 )
 from EasyLM.models.llama.llama_model import (
-    LLaMAConfig, FlaxLLaMAForSequenceClassificationModule, FlaxLLaMAForCausalLMModule
+    LLaMAConfig, FlaxLLaMAForSequenceClassificationModule, FlaxLLaMAForCausalLMModule, LlamaTokenizerFast
 )
 
 
@@ -46,7 +47,8 @@ FLAGS, FLAGS_DEF = mlxu.define_flags_with_default(
     save_milestone_freq=0,
     eval_steps=0,
     num_epochs=0,
-    tokenizer=LLaMAConfig.get_tokenizer_config(),
+    tokenizer='', # now, we just use the HF tokenizers.
+    tokenizer_pad_token_id=128255, # default is random unused llama 3 token. for llama 2, use 0 (unk token)
     train_dataset=DatasetFactory.get_default_config(),
     eval_dataset=DatasetFactory.get_default_config(),
     optimizer=OptimizerFactory.get_default_config(),
@@ -102,7 +104,9 @@ def main(argv):
     )
     set_random_seed(FLAGS.seed)
 
-    tokenizer = LLaMAConfig.get_tokenizer(FLAGS.tokenizer)
+    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None))
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = FLAGS.tokenizer_pad_token_id
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
     if FLAGS.load_dataset_state != '':
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
@@ -135,8 +139,8 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    if llama_config.vocab_size < wrapped_dataset.vocab_size:
-        llama_config.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    # if llama_config.vocab_size < wrapped_dataset.vocab_size:
+    #     llama_config.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
     model = FlaxLLaMAForSequenceClassificationModule(
         llama_config, dtype=get_float_dtype_by_name(FLAGS.dtype)

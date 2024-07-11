@@ -91,6 +91,26 @@ LLAMA_STANDARD_CONFIGS = {
         'n_kv_heads': 8,
         'norm_eps': 1e-5,
     },
+    '8b3': {
+        'dim': 4096,
+        'intermediate_size': 14336,
+        'n_layers': 32,
+        'n_heads': 32,
+        'n_kv_heads': 8,
+        'norm_eps': 1e-6,
+        'vocab_size': 128256,
+        'rope_theta': 500000,
+    },
+    '70b3': {
+        'dim': 8192,
+        'intermediate_size': 28672,
+        'n_layers': 80,
+        'n_heads': 64,
+        'n_kv_heads': 8,
+        'norm_eps': 1e-5,
+        'vocab_size': 128256,
+        'rope_theta': 500000,
+    }
 }
 
 
@@ -212,6 +232,8 @@ def write_model(loaded, model_path, model_size, is_reward_model=False):
         num_hidden_layers=params["n_layers"],
         rms_norm_eps=params["norm_eps"],
         num_key_value_heads=params.get("n_kv_heads", params["n_heads"]),
+        vocab_size=params.get("vocab_size", 32000),  # default to llama 2 size
+        rope_theta=params.get("rope_theta", 100000,) # default to llama 2 size
     )
     # Set the number of labels to 1 for reward models.
     if is_reward_model:
@@ -304,13 +326,25 @@ def write_tokenizer(tokenizer_path, input_tokenizer_path):
     shutil.copyfile(input_tokenizer_path, os.path.join(tokenizer_path, "tokenizer.model"))
 
 
+def write_hf_tokenizer(output_dir, tokenizer_path):
+    from transformers import AutoTokenizer
+    import os
+    HF_TOKEN = os.getenv("HF_TOKEN", None)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_auth_token=HF_TOKEN)
+    tokenizer.save_pretrained(output_dir)
+
+
 def main(argv):
     assert FLAGS.load_checkpoint != "" and FLAGS.output_dir != "" and FLAGS.tokenizer_path != ""
     assert FLAGS.model_size in LLAMA_STANDARD_CONFIGS
-    write_tokenizer(
-        tokenizer_path=FLAGS.output_dir,
-        input_tokenizer_path=FLAGS.tokenizer_path,
-    )
+    # for llama 3, just use the hf tokenizer version.
+    if 'b3' in FLAGS.model_size:
+        write_hf_tokenizer(FLAGS.output_dir, FLAGS.tokenizer_path)
+    else:
+        write_tokenizer(
+            tokenizer_path=FLAGS.output_dir,
+            input_tokenizer_path=FLAGS.tokenizer_path,
+        )
     write_model(
         load_and_convert_checkpoint(FLAGS.load_checkpoint),
         model_path=FLAGS.output_dir,

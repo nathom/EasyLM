@@ -1,6 +1,6 @@
 # Running EasyLM (Hamish Ver.) At AI2
 
-Here's a crash course on running this library. I'll focus on users at AI2, who are currently the primary consumers of this fork. This is a beta of this document, as things may change over time.
+Here's a crash course on running this library. I'll focus on users at AI2, who are currently the primary consumers of this fork. I'll try to keep this updated as the rest of the library changes, but note that it might fall out of sync. Please raise an issue or email me if you find issues.
 
 ## Setup
 
@@ -63,7 +63,7 @@ gsutil -m cp gs://hamishi-east1/easylm/data/tulu-v2-sft-mixture.jsonl .  # downl
 
 And that's it! Then you can go nuts and train. Here's an example *finetuning* command:
 ```bash
-cd easylm; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; python3 -m EasyLM.models.llama.llama_train \
+cd easylm; export HF_TOKEN=<your_token_here>; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; python3 -m EasyLM.models.llama.llama_train \
     --mesh_dim='1,-1,8' \
     --dtype='bf16' \
     --num_epochs=2 \
@@ -74,7 +74,8 @@ cd easylm; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_
     --update_llama_config='' \
     --load_dataset_state='' \
     --load_checkpoint='params::gs://hamishi-east1/easylm/llama2/7b' \
-    --tokenizer.vocab_file='gs://hamishi-east1/easylm/llama/tokenizer.model' \
+    --tokenizer='meta-llama/Llama-2-7b-hf' \
+    --tokenizer_pad_token_id=0 \
     --optimizer.type='adamw' \
     --optimizer.adamw_optimizer.weight_decay=0.0 \
     --optimizer.adamw_optimizer.lr=2e-5 \
@@ -104,7 +105,7 @@ Generally, I recommend waiting and checking for the model to start logging steps
 
 Here's an example dpo train script, and note that it is basically the same:
 ```bash
-cd easylm; git pull; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; python3 -m EasyLM.models.llama.llama_train_dpo \
+cd easylm; git pull; export HF_TOKEN=<your_token_here>; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; python3 -m EasyLM.models.llama.llama_train_dpo \
     --mesh_dim='-1,16,16' \
     --dtype='bf16' \
     --num_epochs=3 \
@@ -115,7 +116,8 @@ cd easylm; git pull; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_window
     --update_llama_config='' \
     --load_dataset_state='' \
     --load_checkpoint='params::gs://hamishi-east1/easylm/llama2/tulu2_7b_fixed/263f4f758b194729b206d5adad2b50d7/streaming_params_20384' \
-    --tokenizer.vocab_file='gs://hamishi-east1/easylm/llama/tokenizer.model' \
+    --tokenizer='meta-llama/Llama-2-7b-hf' \
+    --tokenizer_pad_token_id=0 \
     --optimizer.type='adamw' \
     --optimizer.adamw_optimizer.weight_decay=0.0 \
     --optimizer.adamw_optimizer.lr=5e-7 \
@@ -138,13 +140,14 @@ I have arguments for the beta, etc, but these are not used here. Other example s
 
 Here's an example PPO training script:
 ```bash
-cd easylm; git pull; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; python3 -m EasyLM.models.llama.llama_train_ppo \
+cd easylm; git pull; export HF_TOKEN=<your_token_here>; export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; python3 -m EasyLM.models.llama.llama_train_ppo \
     --mesh_dim='1,64,4' \
     --load_llama_config_policy='13b' \
     --load_llama_config_reward='13b' \
     --load_checkpoint_policy='params::gs://hamishi-east1/easylm/llama2/tulu2_13b_fixed/tulu2_13b_fixed/455af914503740be9664497dae996762/streaming_params' \
     --load_checkpoint_reward='params::gs://hamishi-east1/rm/tulu2_13b_ultrafeedback_rm/7371c411dcfd4b09994aaa50a3a07128/streaming_params_1903' \
-    --tokenizer.vocab_file='gs://jiachengl-east1/tokenizer.model' \
+    --tokenizer='meta-llama/Llama-2-7b-hf' \
+    --tokenizer_pad_token_id=0 \
     --tokenizer.add_bos_token=True \
     --train_dataset.type='tulu_prompt' \
     --train_dataset.tulu_prompt_dataset.path='gs://hamishi-east1/easylm/data/converted_pref_data/ultrafeedback_mean_aspects_cleaned.jsonl' \

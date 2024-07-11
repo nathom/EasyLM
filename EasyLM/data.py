@@ -38,7 +38,7 @@ class DatasetFactory(object):
         return config
 
     @classmethod
-    def load_dataset(cls, config, tokenizer, **kwargs):
+    def load_dataset(cls, config, tokenizer, seed=42, **kwargs):
         config = cls.get_default_config(config)
         text_processor = TextProcessor(config.text_processor, tokenizer)
         if config.type == 'huggingface':
@@ -48,7 +48,7 @@ class DatasetFactory(object):
         elif config.type == 'json':
             return JsonDataset(config.json_dataset, tokenizer, text_processor, **kwargs)
         elif config.type == 'json_torch':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = JsonTorchDataset(config.json_torch_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -59,7 +59,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'tulu_json_torch':
-            torch.manual_seed(42) # keep dataloader order the same across devices.
+            torch.manual_seed(seed) # keep dataloader order the same across devices.
             dataset = TuluJsonTorchDataset(config.json_torch_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -70,7 +70,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'preference_json_torch':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = PreferenceDataset(config.json_torch_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -81,7 +81,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'hf_prompt':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = HFPromptDataset(config.hf_prompt_dataset, tokenizer, **kwargs)
             return DataLoader(
                 dataset,
@@ -92,7 +92,7 @@ class DatasetFactory(object):
                 drop_last=True  # sometimes batch doesnt split across tpu well.
             )
         elif config.type == 'tulu_prompt':
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
             dataset = TuluPromptDataset(config.tulu_prompt_dataset, tokenizer, text_processor, **kwargs)
             return DataLoader(
                 dataset,
@@ -327,9 +327,9 @@ class HFPromptDataset(object):
 
     def _process_sample(self, sample):
         prompt = self.config.policy_prefix_tokens + sample['instruction'] + self.config.policy_suffix_tokens
-        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first')
+        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first', add_special_tokens=False)
         reward_prompt = self.config.reward_prefix_tokens + sample['instruction'] + self.config.reward_suffix_tokens
-        reward_prompt_tok = self.tokenizer(reward_prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first')
+        reward_prompt_tok = self.tokenizer(reward_prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first', add_special_tokens=False)
         return {
             "prompt_input_ids": np.array(prompt_tok.input_ids, dtype=np.int32),
             "prompt_attn_mask": np.array(prompt_tok.attention_mask, dtype=np.int32),
@@ -701,13 +701,15 @@ class TuluJsonTorchDataset(JsonTorchDataset):
             example_text,
             return_tensors='pt',
             max_length=max_seq_length,
-            truncation=True
+            truncation=True,
+            add_special_tokens=False
         )
         untruncated_input_ids = tokenizer(
             example_text,
             return_tensors='pt',
             max_length=max_seq_length,
-            truncation=False
+            truncation=False,
+            add_special_tokens=False
         )
         truncated = tokenized_example.input_ids.shape[1] != untruncated_input_ids.input_ids.shape[1]
         input_ids = tokenized_example.input_ids
@@ -721,7 +723,7 @@ class TuluJsonTorchDataset(JsonTorchDataset):
                     message_start_idx = 0
                 else:
                     message_start_idx = tokenizer(
-                        _concat_messages(messages[:message_idx]), return_tensors='pt', max_length=max_seq_length, truncation=True
+                        _concat_messages(messages[:message_idx]), return_tensors='pt', max_length=max_seq_length, truncation=True, add_special_tokens=False
                     ).input_ids.shape[1]
                 if message_idx < len(messages) - 1 and messages[message_idx+1]["role"] == "assistant":
                     # here we also ignore the role of the assistant
@@ -732,7 +734,8 @@ class TuluJsonTorchDataset(JsonTorchDataset):
                     messages_so_far,
                     return_tensors='pt',
                     max_length=max_seq_length,
-                    truncation=True
+                    truncation=True,
+                    add_special_tokens=False
                 ).input_ids.shape[1]
                 if message_start_idx >= labels.shape[1]:
                     print("Warning, message got truncated.")
@@ -830,13 +833,13 @@ class TuluPromptDataset(JsonTorchDataset):
             return message_text
     
         prompt = _concat_messages_to_prompt(messages)
-        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first')
+        prompt_tok = self.tokenizer(prompt, max_length=self.config.seq_length, padding='max_length', truncation='longest_first', add_special_tokens=False)
         return {
             "prompt_input_ids": np.array(prompt_tok.input_ids, dtype=np.int32),
             "prompt_attn_mask": np.array(prompt_tok.attention_mask, dtype=np.int32),
             "reward_prompt_input_ids": np.array(prompt_tok.input_ids, dtype=np.int32),
             "reward_prompt_attn_mask": np.array(prompt_tok.attention_mask, dtype=np.int32),
-            "truncated": True if len(self.tokenizer(prompt).input_ids) > self.config.seq_length else False,
+            "truncated": True if len(self.tokenizer(prompt, add_special_tokens=False).input_ids) > self.config.seq_length else False,
         }
     
 
@@ -855,21 +858,16 @@ def pad_out_to_full_batch(desired_batch_size, batch):
     return batch
 
 if __name__ == "__main__":
-    from EasyLM.models.llama.llama_model import LLaMATokenizer
-    tokenizer = LLaMATokenizer(
-        vocab_file='gs://hamishi-dev/easylm/llama/tokenizer.model',
-        add_bos_token=False,
-        add_eos_token=False,
-        padding_side='left',
-        truncation_side='right',
-    )
+    from EasyLM.models.llama.llama_model import LlamaTokenizerFast
+    tokenizer = LlamaTokenizerFast.from_pretrained('Meta-Llama-3-8B')
+    tokenizer.pad_token_id = 128255
     text_processor = TextProcessor({'fields': '[prompt],completion'}, tokenizer)
     dataset = TuluJsonTorchDataset(
         TuluJsonTorchDataset.get_default_config(
             {
-                'path': 'debug_sft.jsonl',
-                "seq_length": 4096,
-                "num_workers": 1,
+                'hf_name': 'allenai/tulu-v2-sft-mixture',
+                "seq_length": 8192,
+                "num_workers": 16,
             }), tokenizer, text_processor)
     loader = DataLoader(
         dataset,
