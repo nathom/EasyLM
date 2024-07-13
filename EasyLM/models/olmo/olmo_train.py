@@ -171,15 +171,14 @@ def main(argv):
                 logits, batch['target_tokens'], batch['loss_masks']
             )
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
-        (loss, accuracy), grads = grad_fn(train_state.params)
+        (loss, metrics), grads = grad_fn(train_state.params)
         train_state = train_state.apply_gradients(grads=grads)
-        metrics = dict(
+        metrics.update(dict(
             loss=loss,
-            accuracy=accuracy,
             learning_rate=optimizer_info['learning_rate_schedule'](train_state.step // FLAGS.optimizer.accumulate_gradient_steps),
             gradient_norm=global_norm(grads),
             param_norm=global_norm(train_state.params),
-        )
+        ))
         return train_state, rng_generator(), metrics
 
     print("Initializing training state and pjitting...")
@@ -313,7 +312,6 @@ def main(argv):
                     }
                     log_metrics = jax.device_get(log_metrics)
                     log_metrics.update(metrics)
-                    print(log_metrics)
                     log_metrics = {k: float(v) for k, v in log_metrics.items()}
                     logger.log(log_metrics)
                     tqdm.write("\n" + pprint.pformat(log_metrics) + "\n")
