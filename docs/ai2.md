@@ -57,7 +57,7 @@ I'll omit the TPU ssh command bits here, but remember to use them for a TPU pod!
 ```bash
 git clone https://github.com/hamishivi/easylm.git  # and swap to whatever branch you want
 cd easylm; ./scripts/tpu_vm_setup.sh  # setup environment
-wandb login <key>  # for logging into wandb
+python3 -m wandb login <key>  # for logging into wandb
 gsutil -m cp gs://hamishi-east1/easylm/data/tulu-v2-sft-mixture.jsonl .  # download whatever data you want. TODO: I need to allow data to be streamed...
 ```
 
