@@ -208,7 +208,7 @@ A few notes:
 
 ## Killing a job
 
-I usually use `pgrep llama | xargs kill -9` to ensure everything is dead.
+I usually use `sudo lsof -t /dev/accel0 | xargs sudo kill -9` to ensure everything is dead.
 
 ## Preference data max sequence length for running data abltaion
 ```
