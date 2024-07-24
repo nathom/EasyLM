@@ -563,7 +563,7 @@ def apply_scaling(freqs: jnp.ndarray):
     high_freq_wavelen = old_context_len / high_freq_factor
     new_freqs = []
     for freq in freqs:
-        wavelen = 2 * jnp.pi / freq
+        wavelen = 2 * np.pi / freq
         if wavelen < high_freq_wavelen:
             new_freqs.append(freq)
         elif wavelen > low_freq_wavelen:
@@ -574,7 +574,7 @@ def apply_scaling(freqs: jnp.ndarray):
                 high_freq_factor - low_freq_factor
             )
             new_freqs.append((1 - smooth) * freq / scale_factor + smooth * freq)
-    return jnp.asarray(new_freqs).astype(freqs.dtype)
+    return np.asarray(new_freqs).astype(freqs.dtype)
 
 
 def precompute_freqs_cis(dim: int, end: int, theta: float=10000.0, dtype: jnp.dtype=jnp.float32, use_scaled: bool = False) -> jnp.ndarray:
@@ -1738,9 +1738,9 @@ if __name__ == '__main__':
     from EasyLM.checkpoint import StreamingCheckpointer
     from EasyLM.jax_utils import JaxRNG, next_rng
     import torch
-    tokenizer = AutoTokenizer.from_pretrained('/data/hamishi/Meta-Llama-3.1-8B')
-    hf_model = AutoModelForCausalLM.from_pretrained('/data/hamishi/Meta-Llama-3.1-8B')
-    llama_config = LLaMAConfig.load_config('8b31')
+    tokenizer = AutoTokenizer.from_pretrained('/data/hamishi/Meta-Llama-3.1-70B')
+    hf_model = AutoModelForCausalLM.from_pretrained('/data/hamishi/Meta-Llama-3.1-70B')
+    llama_config = LLaMAConfig.load_config('70b31')
     jax_model = FlaxLLaMAForCausalLMModule(
         llama_config, dtype=jnp.float32
     )
@@ -1748,7 +1748,7 @@ if __name__ == '__main__':
         StreamingCheckpointer.get_default_config(), 'output',
         enable=jax.process_index() == 0,
     )
-    _, restored_params = checkpointer.load_trainstate_checkpoint('params::llama_3_1_8b')
+    _, restored_params = checkpointer.load_trainstate_checkpoint('params::llama_3_1_70b')
     inputs = tokenizer("What is 2+2?", return_tensors='jax').input_ids
     hf_logits = hf_model(torch.tensor(np.array(inputs))).logits
     jax_logits = jax_model.apply(
