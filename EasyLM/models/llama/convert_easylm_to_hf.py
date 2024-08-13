@@ -120,6 +120,7 @@ LLAMA_STANDARD_CONFIGS = {
         'norm_eps': 1e-6,
         'vocab_size': 128256,
         'rope_theta': 500000,
+        'max_position_embeddings': 131072,
         'rope_scaling': {
             "factor": 8.0,
             "low_freq_factor": 1.0,
@@ -137,6 +138,7 @@ LLAMA_STANDARD_CONFIGS = {
         'norm_eps': 1e-5,
         'vocab_size': 128256,
         'rope_theta': 500000,
+        'max_position_embeddings': 131072,
         'rope_scaling': {
             "factor": 8.0,
             "low_freq_factor": 1.0,
@@ -154,6 +156,7 @@ LLAMA_STANDARD_CONFIGS = {
         'rms_norm_eps': 1e-5,
         'vocab_size': 128256,
         'rope_theta': 500000,
+        'max_position_embeddings': 131072,
         'rope_scaling': {
             "factor": 8.0,
             "low_freq_factor": 1.0,
@@ -282,9 +285,10 @@ def write_model(loaded, model_path, model_size, is_reward_model=False):
         num_attention_heads=params["n_heads"],
         num_hidden_layers=params["n_layers"],
         rms_norm_eps=params["norm_eps"],
+        max_position_embeddings=params.get("max_position_embeddings", 8192),
         num_key_value_heads=params.get("n_kv_heads", params["n_heads"]),
         vocab_size=params.get("vocab_size", 32000),  # default to llama 2 size
-        rope_theta=params.get("rope_theta", 100000,) # default to llama 2 size
+        rope_theta=params.get("rope_theta", 100000,), # default to llama 2 size
         rope_scaling=params.get("rope_scaling", None) # default to none (llama 2/3.0)
     )
     # Set the number of labels to 1 for reward models.
@@ -383,6 +387,12 @@ def write_hf_tokenizer(output_dir, tokenizer_path):
     import os
     HF_TOKEN = os.getenv("HF_TOKEN", None)
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_auth_token=HF_TOKEN)
+    # set chat template
+    tokenizer.chat_template = "{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '<|user|>\n' + message['content'] }}\n{% elif message['role'] == 'assistant' %}\n{{ '<|assistant|>\n'  + message['content'] + eos_token }}\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n{% endif %}\n{% endfor %}"
+    # set pad token (for llama 3/3.1, I set it to 128255).
+    # this will break for llama 2, but we shouldnt use this codepath for it anyway.
+    tokenizer.pad_token_id = 128255
+    # I dont know how to rename this token... leaving it as `reserved_special_token_247` for now.
     tokenizer.save_pretrained(output_dir)
 
 
