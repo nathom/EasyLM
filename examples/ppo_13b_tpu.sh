@@ -7,15 +7,15 @@ python3 -m EasyLM.models.llama.llama_train_ppo \
     --mesh_dim='1,64,4' \
     --load_llama_config_policy='13b' \
     --load_llama_config_reward='13b' \
-    --load_checkpoint_policy='params::gs://hamishi-east1/easylm/llama2/tulu2_13b_fixed/tulu2_13b_fixed/455af914503740be9664497dae996762/streaming_params' \
-    --load_checkpoint_reward='params::gs://hamishi-east1/rm/tulu2_13b_ultrafeedback_rm/7371c411dcfd4b09994aaa50a3a07128/streaming_params_1903' \
-    --tokenizer.vocab_file='gs://jiachengl-east1/tokenizer.model' \
+    --load_checkpoint_policy='params::gs://tdmpc-bucket/llama-1b/llama-1b.stream' \
+    --load_checkpoint_reward='gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream' \
+    --tokenizer.vocab_file='gs://tdmpc-bucket/grm-llama3.2-3b/tokenizer.json'\
     --tokenizer.add_bos_token=True \
     --train_dataset.type='tulu_prompt' \
-    --train_dataset.tulu_prompt_dataset.path='gs://hamishi-east1/easylm/data/converted_pref_data/ultrafeedback_mean_aspects_cleaned.jsonl' \
+    --train_dataset.tulu_prompt_dataset.path='gs://tdmpc-bucket/data/tulu-2.5-preference-data_ultrafeedback_mean_aspects.jsonl' \
     --train_dataset.tulu_prompt_dataset.seq_length=1024 \
     --max_continuation_len=1024 \
-    --train_dataset.tulu_prompt_dataset.batch_size=512 \
+    --train_dataset.tulu_prompt_dataset.batch_size=1 \
     --rollouts_per_prompt=1 \
     --mini_batch_size=64 \
     --train_dataset.tulu_prompt_dataset.num_workers=16 \
@@ -31,8 +31,8 @@ python3 -m EasyLM.models.llama.llama_train_ppo \
     --logger.project='n-Tulu-PPO-Jax' \
     --logger.prefix='train_v3.2_v3_interleave-fwd-bwd_nofreeze' \
     --logger.prefix_to_id=True \
-    --logger.wandb_dir='/home/jiachengl/wandb' \
-    --logger.output_dir='gs://jiachengl-east1/n-tulu-ppo-jax/' \
+    --logger.wandb_dir='/home/ucsdwanglab/wandb' \
+    --logger.output_dir='gs://tdmpc-bucket/n-tulu-ppo-jax/' \
     --use_tpu=True \
     --ppo_epochs=1 \
     --lr=1e-6 \
@@ -42,5 +42,5 @@ python3 -m EasyLM.models.llama.llama_train_ppo \
     --num_epochs=1 \
     --max_steps_per_epoch=0 \
     --generate_only=False \
-    &> /home/jiachengl/all.log & \
+    &> /home/ucsdwanglab/all.log & \
 "

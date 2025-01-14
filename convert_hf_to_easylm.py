@@ -19,10 +19,46 @@ from EasyLM.checkpoint import StreamingCheckpointer
 LLAMA_STANDARD_CONFIGS = {
     '1b': {
         'dim': 2048,
-        'intermediate_size': 5504,
-        'n_layers': 22,
-        'n_heads': 16,
-        'norm_eps': 1e-6,
+        'intermediate_size': 8192,
+        'n_layers': 16,
+        'n_heads': 32,
+        'norm_eps': 1e-5,
+    },
+    '3b32-rm': {
+        'dim': 3072,  
+        'intermediate_size': 8192,  
+        'n_layers': 28,  
+        'n_heads': 24,  
+        'n_kv_heads': 8,  
+        'norm_eps': 1e-5,  
+        'vocab_size': 128256,  
+        'rope_theta': 500000,  
+        'max_position_embeddings': 131072,  
+        'rope_scaling': {  
+            "factor": 32.0,
+            "low_freq_factor": 1.0,
+            "high_freq_factor": 4.0,
+            "original_max_position_embeddings": 8192,
+            "rope_type": "llama3"
+        },
+    },
+    '1b32': {
+        'dim': 2048,
+        'intermediate_size': 8192,
+        'n_layers': 16,
+        'n_heads': 32,
+        'n_kv_heads': 8,
+        'norm_eps': 1e-5,
+        'vocab_size': 128256,
+        'rope_theta': 500000,
+        'max_position_embeddings': 131072,
+        'rope_scaling': {
+            "factor": 32.0,
+            "low_freq_factor": 1.0,
+            "high_freq_factor": 4.0,
+            "original_max_position_embeddings": 8192,
+            "rope_type": "llama3"
+        },
     },
     '3b': {
         'dim': 3200,
@@ -190,8 +226,12 @@ def main(args):
                 for layer in range(params["n_layers"])
             },
         },
-        "lm_head": {"kernel": ckpt["lm_head.weight"].to(torch.float16).numpy().transpose()[:, :-8]},
+        # "lm_head": {"kernel": ckpt["lm_head.weight"].to(torch.float16).numpy().transpose()[:, :-8]},
+        "lm_head": {"kernel": ckpt.get("lm_head.weight", ckpt["embed_tokens.weight"]).to(torch.float16).numpy().transpose()[:, :-8]},
     }
+    if args.model_size.endswith('rm'):
+        print('Adding rm score head')
+        jax_weights['score'] = ckpt[f"score.weight"].to(torch.float16).numpy().transpose()
     print(f"Convert weight to easylm format finished...")
     print(f"Start to save...")
 
