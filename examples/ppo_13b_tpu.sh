@@ -3,19 +3,18 @@ export WANDB_API_KEY=$WANDB_API_KEY; \
 cd EasyLM_run; \
 git pull; \
 export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; \
-pip install -r requirements.txt; \
+export CUDA_VISIBLE_DEVICES=-1; \
 python -m EasyLM.models.llama.llama_train_ppo \
     --mesh_dim='1,64,4' \
     --load_llama_config_policy='13b' \
     --load_llama_config_reward='13b' \
     --load_checkpoint_policy='params::gs://tdmpc-bucket/llama-1b/llama-1b.stream' \
-    --load_checkpoint_reward='gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream' \
-    --tokenizer.vocab_file='gs://tdmpc-bucket/grm-llama3.2-3b/tokenizer.json'\
-    --tokenizer.add_bos_token=True \
+    --load_checkpoint_reward='params::gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream' \
     --train_dataset.type='tulu_prompt' \
     --train_dataset.tulu_prompt_dataset.path='gs://tdmpc-bucket/data/tulu-2.5-preference-data_ultrafeedback_mean_aspects.jsonl' \
     --train_dataset.tulu_prompt_dataset.seq_length=1024 \
     --max_continuation_len=1024 \
+    --tokenizer='meta-llama/Llama-3.2-1B' \
     --train_dataset.tulu_prompt_dataset.batch_size=1 \
     --rollouts_per_prompt=1 \
     --mini_batch_size=64 \
@@ -28,12 +27,12 @@ python -m EasyLM.models.llama.llama_train_ppo \
     --policy_freeze_epochs=0.0 \
     --checkpointer.save_optimizer_state=False \
     --logger.online=True \
-    --logger.entity='nathom' \
+    --logger.entity='nathom-team' \
     --logger.project='tdmpc-lm' \
     --logger.prefix='test_run' \
     --logger.prefix_to_id=True \
     --logger.wandb_dir='/home/ucsdwanglab/wandb' \
-    --logger.output_dir='gs://tdmpc-bucket/n-tulu-ppo-jax/' \
+    --logger.output_dir='gs://tdmpc-bucket/tdmpc-lm/' \
     --use_tpu=True \
     --ppo_epochs=1 \
     --lr=1e-6 \

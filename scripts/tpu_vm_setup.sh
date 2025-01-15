@@ -44,6 +44,7 @@ fastapi
 uvicorn
 gradio
 jax-smi
+scipy<=1.12.0,>= 1.6.0
 EndOfFile
 
 pip install --upgrade -r $HOME/tpu_requirements.txt
