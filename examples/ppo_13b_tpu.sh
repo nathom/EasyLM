@@ -1,9 +1,10 @@
-gcloud alpha compute tpus tpu-vm ssh jiachengl-v3-256 --zone=us-east1-d --project=ai2-tpu --worker=all --command="\
+gcloud alpha compute tpus tpu-vm ssh wang-v4-32 --zone=us-central2-b --worker=all --command="\
 export WANDB_API_KEY=$WANDB_API_KEY; \
-cd n-tulu-ppo-jax; \
+cd EasyLM_run; \
 git pull; \
 export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; \
-python3 -m EasyLM.models.llama.llama_train_ppo \
+pip install -r requirements.txt; \
+python -m EasyLM.models.llama.llama_train_ppo \
     --mesh_dim='1,64,4' \
     --load_llama_config_policy='13b' \
     --load_llama_config_reward='13b' \
@@ -27,9 +28,9 @@ python3 -m EasyLM.models.llama.llama_train_ppo \
     --policy_freeze_epochs=0.0 \
     --checkpointer.save_optimizer_state=False \
     --logger.online=True \
-    --logger.entity='liujch1998' \
-    --logger.project='n-Tulu-PPO-Jax' \
-    --logger.prefix='train_v3.2_v3_interleave-fwd-bwd_nofreeze' \
+    --logger.entity='nathom' \
+    --logger.project='tdmpc-lm' \
+    --logger.prefix='test_run' \
     --logger.prefix_to_id=True \
     --logger.wandb_dir='/home/ucsdwanglab/wandb' \
     --logger.output_dir='gs://tdmpc-bucket/n-tulu-ppo-jax/' \
@@ -42,5 +43,5 @@ python3 -m EasyLM.models.llama.llama_train_ppo \
     --num_epochs=1 \
     --max_steps_per_epoch=0 \
     --generate_only=False \
-    &> /home/ucsdwanglab/all.log & \
+    | tee /home/ucsdwanglab/all.log \
 "
