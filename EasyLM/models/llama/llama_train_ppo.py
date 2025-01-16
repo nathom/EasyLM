@@ -25,9 +25,9 @@ from EasyLM.jax_utils import (
     with_sharding_constraint
 )
 from EasyLM.models.llama.llama_model import (
-    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression, LlamaTokenizerFast
+    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression
 )
-from transformers import GenerationConfig
+from transformers import GenerationConfig, PreTrainedTokenizerFast
 
 try:
     from jax_smi import initialise_tracking
@@ -322,7 +322,8 @@ def ppo_forward_backward(
 
 
 def main(argv):
-    JaxDistributedConfig.initialize(FLAGS.jax_distributed)
+    jax.distributed.initialize()
+    # JaxDistributedConfig.initialize(FLAGS.jax_distributed)
 
     variant = mlxu.get_user_flags(FLAGS, FLAGS_DEF)
     flags_config_dict = mlxu.user_flags_to_config_dict(FLAGS, FLAGS_DEF)
@@ -335,7 +336,9 @@ def main(argv):
 
     print("Loading dataset...")
     # make sure to left-pad for generation.
+    
     tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
+    # tokenizer = PreTrainedToke.from_pretrained('meta-llama/llama-3.2-1b')
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = FLAGS.tokenizer_pad_token_id
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
