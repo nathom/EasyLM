@@ -322,8 +322,8 @@ def ppo_forward_backward(
 
 
 def main(argv):
-    jax.distributed.initialize()
-    # JaxDistributedConfig.initialize(FLAGS.jax_distributed)
+    # jax.distributed.initialize()
+    JaxDistributedConfig.initialize(FLAGS.jax_distributed)
 
     variant = mlxu.get_user_flags(FLAGS, FLAGS_DEF)
     flags_config_dict = mlxu.user_flags_to_config_dict(FLAGS, FLAGS_DEF)
@@ -665,6 +665,8 @@ def main(argv):
             if FLAGS.save_model_freq > 0 or FLAGS.save_milestone_freq > 0:
                 save_checkpoint(policy_train_state, value_train_state, step=global_step, milestone=True)
 
-
-if __name__ == "__main__":
+def main_cli():
     mlxu.run(main)
+    
+if __name__ == "__main__":
+    main_cli()

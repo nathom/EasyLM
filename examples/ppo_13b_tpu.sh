@@ -1,8 +1,11 @@
-gcloud alpha compute tpus tpu-vm ssh wang-v4-32 --zone=us-central2-b --worker=all --command="\
+eopod kill-tpu --force
+eopod run "
 export WANDB_API_KEY=$WANDB_API_KEY; \
 export HF_TOKEN=$HF_TOKEN; \
-cd EasyLM_run; \
+cd ~/nathan/EasyLM; \
 git pull; \
+source .venv/bin/activate ; \
+~/.local/bin/uv pip install --prerelease allow .; \
 export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_tpu_spmd_rewrite_einsum_with_reshape=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'; \
 export CUDA_VISIBLE_DEVICES=-1; \
 python -m EasyLM.models.llama.llama_train_ppo \
