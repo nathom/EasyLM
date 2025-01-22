@@ -579,7 +579,7 @@ class JsonTorchDataset(object):
         samples_before = len(self.dataset)
         logger.info(f'Starting filtering with {samples_before} samples')
 
-        if self.debug:
+        if not self.debug:
             if 'loss_masks' in self.dataset.column_names:
                 before = len(self.dataset)
                 self.dataset = self.dataset.filter(lambda x: sum(x['loss_masks'][1:]) > 0)
