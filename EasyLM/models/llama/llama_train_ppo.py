@@ -544,8 +544,9 @@ def main(argv):
             if policy_params is None:
                 policy_train_state = sharded_init_fn_policy(next_rng())
             else:
-                if not FLAGS.use_tpu:
-                    policy_params = flax.core.frozen_dict.unfreeze(policy_params)
+                # if not FLAGS.use_tpu:
+                #     policy_params = flax.core.frozen_dict.unfreeze(policy_params)
+                policy_params = flax.core.frozen_dict.unfreeze(policy_params)
                 policy_train_state = sharded_create_trainstate_from_params_policy(policy_params)
                 del policy_params
 

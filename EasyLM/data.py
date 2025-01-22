@@ -540,6 +540,7 @@ class JsonDataset(object):
 
 
 class JsonTorchDataset(object):
+    debug = True
     @staticmethod
     def get_default_config(updates=None):
         config = ConfigDict()
@@ -578,29 +579,30 @@ class JsonTorchDataset(object):
         samples_before = len(self.dataset)
         logger.info(f'Starting filtering with {samples_before} samples')
 
-        if 'loss_masks' in self.dataset.column_names:
-            before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: sum(x['loss_masks'][1:]) > 0)
-            after = len(self.dataset)
-            logger.info(f'Filtered {before - after} samples with no loss tokens (loss_masks)')
-
-        if 'chosen_loss_mask' in self.dataset.column_names:
-            before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: sum(x['chosen_loss_mask'][1:]) > 0)
-            after = len(self.dataset)
-            logger.info(f'Filtered {before - after} samples with no loss tokens (chosen_loss_mask)')
-
-        if 'rejected_loss_mask' in self.dataset.column_names:
-            before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: sum(x['rejected_loss_mask'][1:]) > 0)
-            after = len(self.dataset)
-            logger.info(f'Filtered {before - after} samples with no loss tokens (rejected_loss_mask)')
-
-        if self.config.remove_truncated_samples:
-            before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: not x['truncated'])
-            after = len(self.dataset)
-            logger.info(f'Filtered {before - after} truncated samples')
+        if self.debug:
+            if 'loss_masks' in self.dataset.column_names:
+                before = len(self.dataset)
+                self.dataset = self.dataset.filter(lambda x: sum(x['loss_masks'][1:]) > 0)
+                after = len(self.dataset)
+                logger.info(f'Filtered {before - after} samples with no loss tokens (loss_masks)')
+    
+            if 'chosen_loss_mask' in self.dataset.column_names:
+                before = len(self.dataset)
+                self.dataset = self.dataset.filter(lambda x: sum(x['chosen_loss_mask'][1:]) > 0)
+                after = len(self.dataset)
+                logger.info(f'Filtered {before - after} samples with no loss tokens (chosen_loss_mask)')
+    
+            if 'rejected_loss_mask' in self.dataset.column_names:
+                before = len(self.dataset)
+                self.dataset = self.dataset.filter(lambda x: sum(x['rejected_loss_mask'][1:]) > 0)
+                after = len(self.dataset)
+                logger.info(f'Filtered {before - after} samples with no loss tokens (rejected_loss_mask)')
+    
+            if self.config.remove_truncated_samples:
+                before = len(self.dataset)
+                self.dataset = self.dataset.filter(lambda x: not x['truncated'])
+                after = len(self.dataset)
+                logger.info(f'Filtered {before - after} truncated samples')
 
         self.dataset = self.dataset.remove_columns(['truncated'])
         logger.info('Filtered out %d truncated examples.', samples_before - len(self.dataset))
