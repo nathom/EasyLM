@@ -377,8 +377,7 @@ def main(argv):
     print("Building model...")
     if FLAGS.load_llama_config_policy != '':
         llama_config_policy = LLaMAConfig.load_config(FLAGS.load_llama_config_policy)
-        print(llama_config_policy)
-        exit()
+        logger.log(f"LLaMA Config (Policy): {llama_config_policy}")
     else:
         llama_config_policy = LLaMAConfig(**FLAGS.llama)
     if FLAGS.update_llama_config_policy != '':
