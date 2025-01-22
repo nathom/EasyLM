@@ -1,8 +1,8 @@
 eopod kill-tpu --force
 eopod run "
-export WANDB_API_KEY=$WANDB_API_KEY; \
+export WANDB_API_KEY=53afc44362eb744594a6c42fe92cf9f1079234e3; \
 export HF_TOKEN=$HF_TOKEN; \
-cd ~/nathan/EasyLM; \
+cd ~/yutao/EasyLM; \
 git pull; \
 source .venv/bin/activate ; \
 ~/.local/bin/uv pip install --prerelease allow 'jax[tpu]==0.4.13' -f https://storage.googleapis.com/jax-releases/libtpu_releases.html; \
@@ -13,7 +13,7 @@ python -m EasyLM.models.llama.llama_train_ppo \
     --mesh_dim='1,4,4' \
     --load_llama_config_policy='1b32' \
     --load_llama_config_reward='3b32' \
-    --load_checkpoint_policy='params::gs://tdmpc-bucket/llama-1b/llama-1b-v2.stream' \
+    --load_checkpoint_policy='params::gs://tdmpc-bucket/llama-1b/llama-1b.stream' \
     --load_checkpoint_reward='params::gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream' \
     --train_dataset.type='tulu_prompt' \
     --train_dataset.tulu_prompt_dataset.path='gs://tdmpc-bucket/data/tulu-2.5-preference-data_ultrafeedback_mean_aspects.jsonl' \
@@ -32,7 +32,7 @@ python -m EasyLM.models.llama.llama_train_ppo \
     --policy_freeze_epochs=0.0 \
     --checkpointer.save_optimizer_state=False \
     --logger.online=True \
-    --logger.entity='nathom-team' \
+    --logger.entity='yux076-ucsd' \
     --logger.project='tdmpc-lm' \
     --logger.prefix='test_run' \
     --logger.prefix_to_id=True \
@@ -47,5 +47,5 @@ python -m EasyLM.models.llama.llama_train_ppo \
     --num_epochs=1 \
     --max_steps_per_epoch=0 \
     --generate_only=False \
-    | tee /home/ucsdwanglab/all.log \
+    | tee /home/ucsdwanglab/yutao/EasyLMall.log \
 "
