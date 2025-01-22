@@ -13,7 +13,7 @@ python -m EasyLM.models.llama.llama_train_ppo \
     --mesh_dim='1,4,4' \
     --load_llama_config_policy='1b32' \
     --load_llama_config_reward='3b32' \
-    --load_checkpoint_policy='params::gs://tdmpc-bucket/llama-1b/llama-1b.stream' \
+    --load_checkpoint_policy='params::gs://tdmpc-bucket/llama-1b/llama-1b-v2.stream' \
     --load_checkpoint_reward='params::gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream' \
     --train_dataset.type='tulu_prompt' \
     --train_dataset.tulu_prompt_dataset.path='gs://tdmpc-bucket/data/tulu-2.5-preference-data_ultrafeedback_mean_aspects.jsonl' \

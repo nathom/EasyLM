@@ -225,12 +225,13 @@ def main(args):
                 }
                 for layer in range(params["n_layers"])
             },
+            # "lm_head": {"kernel": ckpt.get("lm_head.weight", ckpt["embed_tokens.weight"]).to(torch.float16).numpy().transpose()[:, :-8]},
         },
         # "lm_head": {"kernel": ckpt["lm_head.weight"].to(torch.float16).numpy().transpose()[:, :-8]},
-        "lm_head": {"kernel": ckpt.get("lm_head.weight", ckpt["embed_tokens.weight"]).to(torch.float16).numpy().transpose()[:, :-8]},
     }
     if args.model_size.endswith('rm'):
         print('Adding rm score head')
+        # TODO: check if this is correct
         jax_weights['score'] = ckpt[f"score.weight"].to(torch.float16).numpy().transpose()
     print(f"Convert weight to easylm format finished...")
     print(f"Start to save...")
