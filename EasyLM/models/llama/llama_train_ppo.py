@@ -25,7 +25,7 @@ from EasyLM.jax_utils import (
     with_sharding_constraint
 )
 from EasyLM.models.llama.llama_model import (
-    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression, LlamaTokenizerFast
+    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression, PreTrainedTokenizerFast
 )
 from transformers import GenerationConfig
 
@@ -333,16 +333,16 @@ def main(argv):
         enable=FLAGS.log_all_worker or (jax.process_index() == 0),
     )
     set_random_seed(FLAGS.seed)
-
-    print("Loading dataset...")
-    # make sure to left-pad for generation.
     
-    tokenizer = LlamaTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
-    # tokenizer = PreTrainedToke.from_pretrained('meta-llama/llama-3.2-1b')
+    print('loading tokenizer')
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
+    print('loading dataset')
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = FLAGS.tokenizer_pad_token_id
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer)
+    print('done loading dataset')
     if FLAGS.load_dataset_state != '':
+        raise Exception('loading dataset state is not supported')
         dataset.load_state_dict(mlxu.load_pickle(FLAGS.load_dataset_state))
     wrapped_dataset = dataset.dataset if isinstance(dataset, torch.utils.data.DataLoader) else dataset
 
