@@ -27,7 +27,7 @@ dependencies = [
     "datasets",
     # "jax[tpu]==0.4.13",
     "einops>=0.8.0",
-    "jax[tpu]>=0.4.13",
+    "jax[tpu]==0.4.13",
 ]
 scripts = { llama_train_ppo = "EasyLM.models.llama.llama_train_ppo:main_cli" }
 
