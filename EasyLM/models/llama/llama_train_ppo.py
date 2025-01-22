@@ -27,7 +27,7 @@ from EasyLM.jax_utils import (
 from EasyLM.models.llama.llama_model import (
     LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression, LlamaTokenizerFast
 )
-from transformers import GenerationConfig, PreTrainedTokenizerFast
+from transformers import GenerationConfig
 
 try:
     from jax_smi import initialise_tracking

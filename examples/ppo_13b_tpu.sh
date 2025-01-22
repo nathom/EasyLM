@@ -11,8 +11,8 @@ export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla
 export CUDA_VISIBLE_DEVICES=-1; \
 python -m EasyLM.models.llama.llama_train_ppo \
     --mesh_dim='1,4,4' \
-    --load_llama_config_policy='1b' \
-    --load_llama_config_reward='1b' \
+    --load_llama_config_policy='1b32' \
+    --load_llama_config_reward='3b32' \
     --load_checkpoint_policy='params::gs://tdmpc-bucket/llama-1b/llama-1b.stream' \
     --load_checkpoint_reward='params::gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream' \
     --train_dataset.type='tulu_prompt' \

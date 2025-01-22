@@ -64,6 +64,24 @@ LLAMA_STANDARD_CONFIGS = {
         'eos_token_id': 128001,
         'use_scaled_rope': True
     },
+    '3b32': {
+        'vocab_size': 128257,
+        'hidden_size': 3072,
+        'intermediate_size': 8192,
+        'num_hidden_layers': 28,
+        'num_attention_heads': 24,
+        'num_key_value_heads': 8,
+        'max_sequence_length': 131072,
+        'initializer_range': 0.02,
+        'rms_norm_eps': 1e-5,
+        'use_cache': True,
+        'tie_word_embeddings': True,
+        'rope_theta': 500000.0,
+        'bos_token_id': 128000,
+        'eos_token_id': [128001, 128008, 128009],
+        'use_scaled_rope': True,
+        'pad_token_id': 128256
+    },
     '3b': {
         'vocab_size': 32000,
         'hidden_size': 3200,
