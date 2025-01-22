@@ -25,7 +25,7 @@ from EasyLM.jax_utils import (
     with_sharding_constraint
 )
 from EasyLM.models.llama.llama_model import (
-    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression
+    LLaMAConfig, FlaxLLaMAForCausalLM, FlaxLLaMAForSequenceClassification, FlaxLLaMAForTokenRegression, LlamaTokenizerFast
 )
 from transformers import GenerationConfig, PreTrainedTokenizerFast
 
