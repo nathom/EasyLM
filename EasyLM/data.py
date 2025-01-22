@@ -548,7 +548,7 @@ class JsonTorchDataset(object):
         config.hf_split = 'train'
         config.seq_length = 1024
         config.batch_size = 8
-        config.num_workers = 8
+        config.num_workers = 32
         config.remove_truncated_samples = False
 
         if updates is not None:
@@ -580,28 +580,28 @@ class JsonTorchDataset(object):
         if 'loss_masks' in self.dataset.column_names:
             logger.info('Starting loss_masks filter')
             before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: sum(x['loss_masks'][1:]) > 0)
+            self.dataset = self.dataset.filter(lambda x: sum(x['loss_masks'][1:]) > 0, num_proc=self.config.num_workers)
             after = len(self.dataset)
             logger.info(f'Filtered {before - after} samples with no loss tokens (loss_masks)')
 
         if 'chosen_loss_mask' in self.dataset.column_names:
             logger.info('Starting chosen_loss_mask filter')
             before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: sum(x['chosen_loss_mask'][1:]) > 0)
+            self.dataset = self.dataset.filter(lambda x: sum(x['chosen_loss_mask'][1:]) > 0, num_proc=self.config.num_workers)
             after = len(self.dataset)
             logger.info(f'Filtered {before - after} samples with no loss tokens (chosen_loss_mask)')
 
         if 'rejected_loss_mask' in self.dataset.column_names:
             logger.info('Starting rejected_loss_mask filter')
             before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: sum(x['rejected_loss_mask'][1:]) > 0)
+            self.dataset = self.dataset.filter(lambda x: sum(x['rejected_loss_mask'][1:]) > 0, num_proc=self.config.num_workers)
             after = len(self.dataset)
             logger.info(f'Filtered {before - after} samples with no loss tokens (rejected_loss_mask)')
 
         if self.config.remove_truncated_samples:
             logger.info('Starting truncated samples filter')
             before = len(self.dataset)
-            self.dataset = self.dataset.filter(lambda x: not x['truncated'])
+            self.dataset = self.dataset.filter(lambda x: not x['truncated'], num_proc=self.config.num_workers)
             after = len(self.dataset)
             logger.info(f'Filtered {before - after} truncated samples')
         self.dataset = self.dataset.remove_columns(['truncated'])
