@@ -106,6 +106,7 @@ class StreamingCheckpointer(object):
             remove_dict_prefix = tuple(remove_dict_prefix)
         flattend_train_state = {}
         with mlxu.open_file(path) as fin:
+            # 83886080 bytes = 80 MB, which is 16 blocks on GCS
             unpacker = msgpack.Unpacker(fin, read_size=83886080, max_buffer_size=0)
             for key, value in unpacker:
                 key = tuple(key)
@@ -116,69 +117,25 @@ class StreamingCheckpointer(object):
                         key = key[len(remove_dict_prefix):]
                     else:
                         continue
-    
+
                 tensor = from_bytes(None, value)
                 if shard_fns is not None:
                     tensor = shard_fns[key](tensor)
                 flattend_train_state[key] = tensor
-    
+
         if target is not None:
             flattened_target = flatten_dict(
                 to_state_dict(target), keep_empty_nodes=True
             )
-            # Only restore keys that exist in both target and checkpoint
-            common_keys = set(flattend_train_state.keys()).intersection(flattened_target.keys())
-            flattend_train_state = {k: flattend_train_state[k] for k in common_keys}
-            # Add missing keys from target
             for key, value in flattened_target.items():
                 if key not in flattend_train_state and value == empty_node:
                     flattend_train_state[key] = value
-    
+
         train_state = unflatten_dict(flattend_train_state)
         if target is None:
             return train_state
-    
+
         return from_state_dict(target, train_state)
-    # @staticmethod
-    # def load_checkpoint(path, target=None, shard_fns=None, remove_dict_prefix=None, keys_to_ignore=None):
-    #     if shard_fns is not None:
-    #         shard_fns = flatten_dict(
-    #             to_state_dict(shard_fns)
-    #         )
-    #     if remove_dict_prefix is not None:
-    #         remove_dict_prefix = tuple(remove_dict_prefix)
-    #     flattend_train_state = {}
-    #     with mlxu.open_file(path) as fin:
-    #         # 83886080 bytes = 80 MB, which is 16 blocks on GCS
-    #         unpacker = msgpack.Unpacker(fin, read_size=83886080, max_buffer_size=0)
-    #         for key, value in unpacker:
-    #             key = tuple(key)
-    #             if keys_to_ignore is not None and key in keys_to_ignore:
-    #                 continue
-    #             if remove_dict_prefix is not None:
-    #                 if key[:len(remove_dict_prefix)] == remove_dict_prefix:
-    #                     key = key[len(remove_dict_prefix):]
-    #                 else:
-    #                     continue
-
-    #             tensor = from_bytes(None, value)
-    #             if shard_fns is not None:
-    #                 tensor = shard_fns[key](tensor)
-    #             flattend_train_state[key] = tensor
-
-    #     if target is not None:
-    #         flattened_target = flatten_dict(
-    #             to_state_dict(target), keep_empty_nodes=True
-    #         )
-    #         for key, value in flattened_target.items():
-    #             if key not in flattend_train_state and value == empty_node:
-    #                 flattend_train_state[key] = value
-
-    #     train_state = unflatten_dict(flattend_train_state)
-    #     if target is None:
-    #         return train_state
-
-    #     return from_state_dict(target, train_state)
 
     @staticmethod
     def load_flax_checkpoint(path, target=None, shard_fns=None):
