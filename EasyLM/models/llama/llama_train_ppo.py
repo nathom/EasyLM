@@ -429,12 +429,14 @@ def main(argv):
         return TrainState.create(params=params, tx=policy_optimizer, apply_fn=None)
         
     train_state_shapes_policy = jax.eval_shape(init_fn_policy, next_rng()) # .params = {'params': {'transformer', 'lm_head'}} => .params = {'transformer', 'lm_head'}
-    print(train_state_shapes_policy)
+    from pprint import pprint
+    pprint(flax.traverse_util.flatten_dict(train_state_shapes_policy.params).keys())
+    exit()
     train_state_partition_policy = match_partition_rules(LLaMAConfig.get_partition_rules(), train_state_shapes_policy)
     shard_fns_policy, gather_fns_policy = make_shard_and_gather_fns(train_state_partition_policy, train_state_shapes_policy)
-    print(shard_fns_policy)
-    print(gather_fns_policy)
-    exit()
+    # print(shard_fns_policy)
+    # print(gather_fns_policy)
+    # exit()
     sharded_init_fn_policy = pjit(
         init_fn_policy,
         in_shardings=PS(),
