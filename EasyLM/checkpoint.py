@@ -120,6 +120,8 @@ class StreamingCheckpointer(object):
 
                 tensor = from_bytes(None, value)
                 if shard_fns is not None:
+                    print(key)
+                    print(shard_fns.keys())
                     tensor = shard_fns[key](tensor)
                 flattend_train_state[key] = tensor
 
