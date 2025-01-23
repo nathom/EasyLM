@@ -116,7 +116,7 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
     """
     float_dtypes = (jnp.bfloat16, jnp.float16, jnp.float32, jnp.float64)
 
-    print('partition_specs:', partition_specs)
+    # print('partition_specs:', partition_specs)
 
     def make_to_dtype_fn(dtype_spec):
         def to_dtype(tensor):
