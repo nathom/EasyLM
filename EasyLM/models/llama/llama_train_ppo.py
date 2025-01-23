@@ -336,6 +336,7 @@ def main(argv):
     
     print('loading tokenizer')
     tokenizer = PreTrainedTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
+    print(f"Tokenizer vocabulary size: {len(tokenizer)}")
     print('loading dataset')
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = FLAGS.tokenizer_pad_token_id
@@ -398,8 +399,10 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    # if llama_config_reward.vocab_size < wrapped_dataset.vocab_size:
-    #     llama_config_reward.update(dict(vocab_size=wrapped_dataset.vocab_size))
+    print("vocab_size", llama_config_reward.vocab_size)
+    print("wrapped_dataset.vocab_size", wrapped_dataset.vocab_size)
+    if llama_config_reward.vocab_size < wrapped_dataset.vocab_size:
+        llama_config_reward.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
     policy_model = FlaxLLaMAForCausalLM(llama_config_policy, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
     value_model = FlaxLLaMAForTokenRegression(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
@@ -462,6 +465,10 @@ def main(argv):
     train_state_shapes_reward = jax.eval_shape(init_fn_reward, next_rng()) # .params = {'params': {'transformer', 'lm_head'}} => .params = {'transformer', 'lm_head'}
     train_state_partition_reward = match_partition_rules(LLaMAConfig.get_partition_rules(), train_state_shapes_reward)
     shard_fns_reward, gather_fns_reward = make_shard_and_gather_fns(train_state_partition_reward, train_state_shapes_reward)
+    print("train_state_shapes_reward: ", train_state_shapes_reward)
+    print("shared_init_fn_reward: ", shard_fns_reward)
+
+
     sharded_init_fn_reward = pjit(
         init_fn_reward,
         in_shardings=PS(),

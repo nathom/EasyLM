@@ -20,6 +20,27 @@ from jax.interpreters import pxla
 import numpy as np
 from transformers import FlaxLogitsWarper
 
+def pad_tensor(tensor, target_divisor=4, axis=0, pad_value=0):
+    """
+    Pads the tensor on the specified axis to make its size a multiple of target_divisor.
+    
+    Args:
+        tensor: The JAX array to pad.
+        target_divisor: The divisor to make the dimension size a multiple of.
+        axis: The axis along which to pad.
+        pad_value: The value to use for padding.
+        
+    Returns:
+        The padded tensor.
+    """
+    size = tensor.shape[axis]
+    remainder = size % target_divisor
+    if remainder == 0:
+        return tensor
+    padding = target_divisor - remainder
+    pad_width = [(0, 0)] * len(tensor.shape)
+    pad_width[axis] = (0, padding)
+    return jnp.pad(tensor, pad_width, mode='constant', constant_values=pad_value)
 
 class JaxRNG(object):
     """ A convenient stateful Jax RNG wrapper. Can be used to wrap RNG inside
@@ -95,6 +116,8 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
     """
     float_dtypes = (jnp.bfloat16, jnp.float16, jnp.float32, jnp.float64)
 
+    print('partition_specs:', partition_specs)
+
     def make_to_dtype_fn(dtype_spec):
         def to_dtype(tensor):
             if dtype_specs in float_dtypes and getattr(tensor, 'dtype', None) in float_dtypes:
@@ -112,6 +135,7 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
             out_shardings=partition_spec
         )
         def shard_fn(tensor):
+            tensor = pad_tensor(tensor, target_divisor=4, axis=0, pad_value=0)
             return jax_shard_function(tensor).block_until_ready()
         return shard_fn
 
