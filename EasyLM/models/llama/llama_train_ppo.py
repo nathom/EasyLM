@@ -399,8 +399,8 @@ def main(argv):
         bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
         eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
     ))
-    print("vocab_size", llama_config_reward.vocab_size)
-    print("wrapped_dataset.vocab_size", wrapped_dataset.vocab_size)
+    # print("vocab_size", llama_config_reward.vocab_size)
+    # print("wrapped_dataset.vocab_size", wrapped_dataset.vocab_size)
     if llama_config_reward.vocab_size < wrapped_dataset.vocab_size:
         llama_config_reward.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
@@ -465,8 +465,8 @@ def main(argv):
     train_state_shapes_reward = jax.eval_shape(init_fn_reward, next_rng()) # .params = {'params': {'transformer', 'lm_head'}} => .params = {'transformer', 'lm_head'}
     train_state_partition_reward = match_partition_rules(LLaMAConfig.get_partition_rules(), train_state_shapes_reward)
     shard_fns_reward, gather_fns_reward = make_shard_and_gather_fns(train_state_partition_reward, train_state_shapes_reward)
-    print("train_state_shapes_reward: ", train_state_shapes_reward)
-    print("shared_init_fn_reward: ", shard_fns_reward)
+    # print("train_state_shapes_reward: ", train_state_shapes_reward)
+    # print("shared_init_fn_reward: ", shard_fns_reward)
 
 
     sharded_init_fn_reward = pjit(
