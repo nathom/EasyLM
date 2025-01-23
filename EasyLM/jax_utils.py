@@ -33,7 +33,7 @@ def pad_tensor(tensor, target_divisor=4, axis=0, pad_value=0):
     Returns:
         The padded tensor.
     """
-    print('tensor:', tensor)
+    # print('tensor:', tensor)
     size = tensor.shape[axis]
     remainder = size % target_divisor
     if remainder == 0:
