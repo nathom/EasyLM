@@ -217,6 +217,8 @@ class StreamingCheckpointer(object):
                 shard_fns=params_shard_fns,
                 keys_to_ignore=keys_to_ignore
             )
+            if load_path == "gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream":
+                print(restored_params)
             restored_params = flax.core.frozen_dict.freeze(
                 {'params': restored_params}
             )
