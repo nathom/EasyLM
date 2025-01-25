@@ -122,19 +122,19 @@ class StreamingCheckpointer(object):
                 if shard_fns is not None:
                     if key == ('score',):
                         key = ('score', 'kernel')
-                    try:
+                
                         # print(key)
                         # print(shard_fns.keys())
-                        tensor = shard_fns[key](tensor)
-                    except:
-                        print("unpacker: ")
-                        for key in unpacker.keys():
-                            key = tuple(key)
-                            print(key)
-                        print("-"*50)
-                        print("shard_fns: ")
-                        for key in shard_fns.keys():
-                            print(key)
+                    tensor = shard_fns[key](tensor)
+                    # except:
+                    #     print("unpacker: ")
+                    #     for key in unpacker.keys():
+                    #         key = tuple(key)
+                    #         print(key)
+                    #     print("-"*50)
+                    #     print("shard_fns: ")
+                    #     for key in shard_fns.keys():
+                    #         print(key)
 
                 flattend_train_state[key] = tensor
 
