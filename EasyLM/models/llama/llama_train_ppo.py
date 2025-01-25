@@ -465,8 +465,8 @@ def main(argv):
     train_state_shapes_reward = jax.eval_shape(init_fn_reward, next_rng()) # .params = {'params': {'transformer', 'lm_head'}} => .params = {'transformer', 'lm_head'}
     train_state_partition_reward = match_partition_rules(LLaMAConfig.get_partition_rules(), train_state_shapes_reward)
     
-    print("train_state_shapes_reward: ", train_state_shapes_reward)
-    print("train_state_partition_reward: ", train_state_partition_reward)
+    # print("train_state_shapes_reward: ", train_state_shapes_reward)
+    # print("train_state_partition_reward: ", train_state_partition_reward)
     
     shard_fns_reward, gather_fns_reward = make_shard_and_gather_fns(train_state_partition_reward, train_state_shapes_reward)
     # print("train_state_shapes_reward: ", train_state_shapes_reward)
@@ -573,6 +573,7 @@ def main(argv):
             else:
                 if not FLAGS.use_tpu:
                     value_params = flax.core.frozen_dict.unfreeze(value_params)
+                    print(value_params)
                 value_train_state = sharded_create_trainstate_from_params_reward(value_params)
                 del value_params
 
