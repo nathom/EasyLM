@@ -125,9 +125,12 @@ class StreamingCheckpointer(object):
                         # print(shard_fns.keys())
                         tensor = shard_fns[key](tensor)
                     except:
-                        print(key)
-                        print(unpacker)
-                        print(shard_fns.keys())
+                        print("unpacker: ")
+                        for key, value in unpacker:
+                            print(key)
+                        print("shard_fns: ")
+                        for key in shard_fns.keys():
+                            print(key)
 
                 flattend_train_state[key] = tensor
 
