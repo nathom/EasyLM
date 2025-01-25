@@ -120,13 +120,15 @@ class StreamingCheckpointer(object):
 
                 tensor = from_bytes(None, value)
                 if shard_fns is not None:
+                    if key == ('score'):
+                        key = ('score', 'kernel')
                     try:
                         # print(key)
                         # print(shard_fns.keys())
                         tensor = shard_fns[key](tensor)
                     except:
                         print("unpacker: ")
-                        for key, value in unpacker:
+                        for key in unpacker.keys():
                             key = tuple(key)
                             print(key)
                         print("-"*50)
