@@ -126,7 +126,8 @@ class StreamingCheckpointer(object):
                         tensor = shard_fns[key](tensor)
                     except:
                         print("unpacker: ")
-                        for key, _ in unpacker:
+                        for key, value in unpacker:
+                            key = tuple(key)
                             print(key)
                         print("-"*50)
                         print("shard_fns: ")
