@@ -122,6 +122,8 @@ class StreamingCheckpointer(object):
                 if shard_fns is not None:
                     if key == ('score',):
                         key = ('score', 'kernel')
+                        for key in shard_fns.keys():
+                            print(key)
                 
                         # print(key)
                         # print(shard_fns.keys())
