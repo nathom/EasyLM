@@ -191,6 +191,7 @@ def ppo_rollout(
 
     prompt_input_ids, prompt_attn_mask = batch['prompt_input_ids'], batch['prompt_attn_mask']
     PL = prompt_input_ids.shape[1]
+    print(PL)
 
     # rollout from current policy
     generation_config = GenerationConfig(
