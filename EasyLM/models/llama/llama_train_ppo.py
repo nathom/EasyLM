@@ -574,8 +574,8 @@ def main(argv):
                 if not FLAGS.use_tpu:
                     value_params = flax.core.frozen_dict.unfreeze(value_params)
                 # print(value_params)
-                for key in value_params.keys():
-                    print(f"key{key} type is {type(key)}")
+                # for key in value_params.keys():
+                #     print(f"key{key} type is {type(key)}")
                 value_params = flax.core.frozen_dict.unfreeze(value_params)
                 value_train_state = sharded_create_trainstate_from_params_reward(value_params)
                 del value_params
