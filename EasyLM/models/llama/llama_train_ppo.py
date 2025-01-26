@@ -615,11 +615,17 @@ def main(argv):
             if not FLAGS.use_tpu:
                 reward_params = flax.core.frozen_dict.unfreeze(reward_params)
 
-        for name, param in flax.core.unfreeze(policy_train_state.params).items():
-            print("Policy model parameter {} has shape: {}", name, param.shape)
+        def print_param_shapes(params, prefix=''):
+            if isinstance(params, dict):
+                for name, param in params.items():
+                    new_prefix = f"{prefix}.{name}" if prefix else name
+                    print_param_shapes(param, new_prefix)
+            else:
+                print(f"Policy model parameter '{prefix}' has shape: {params.shape}")
 
-        for name, param in flax.core.unfreeze(value_train_state.params).items():
-            print("Value model parameter {} has shape: {}", name, param.shape)
+        # 调用函数打印所有参数的形状
+        print_param_shapes(policy_train_state.params)
+        print_param_shapes(value_train_state.params)
 
         sharded_rng = next_rng()
 
