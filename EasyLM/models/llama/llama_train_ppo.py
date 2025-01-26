@@ -627,7 +627,7 @@ def main(argv):
             if isinstance(params, dict):
                 for name, param in params.items():
                     new_prefix = f"{prefix}.{name}" if prefix else name
-                    print_param_shapes(param, new_prefix)
+                    print_param_shapes(param, new_prefix, model)
             else:
                 print(f"{model} model parameter '{prefix}' has shape: {params.shape}")
 
