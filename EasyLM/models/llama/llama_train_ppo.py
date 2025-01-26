@@ -381,12 +381,20 @@ def main(argv):
         llama_config_policy = LLaMAConfig.load_config(FLAGS.load_llama_config_policy)
     else:
         llama_config_policy = LLaMAConfig(**FLAGS.llama)
+
     if FLAGS.update_llama_config_policy != '':
         llama_config_policy.update(dict(eval(FLAGS.update_llama_config_policy)))
-    llama_config_policy.update(dict(
-        bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
-        eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
-    ))
+
+    # 更新特殊标记和词汇表大小
+    llama_config_policy.update({
+        "bos_token_id": wrapped_dataset.tokenizer.bos_token_id,
+        "eos_token_id": wrapped_dataset.tokenizer.eos_token_id,
+        "vocab_size": len(tokenizer)  # 确保 vocab_size 与分词器一致
+    })
+
+    print(f"Updated model vocab_size (policy): {llama_config_policy.vocab_size}")
+    print(f"Tokenizer vocabulary size: {len(tokenizer)}")
+
     # if llama_config_policy.vocab_size < wrapped_dataset.vocab_size:
     #     llama_config_policy.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
@@ -642,7 +650,7 @@ def main(argv):
                 t = time.time()
                 sharded_rng, batch = sharded_ppo_rollout(policy_train_state, sharded_rng, batch)
                 batch['cont_position_ids'].block_until_ready()
-                # If we do not use jax.device_get() to convert into numpy array first, we will get an error when iterating a sharded array with dim >= 100
+                # If we do not use jax.device_get() to convert intw o numpy array first, we will get an error when iterating a sharded array with dim >= 100
                 batch = {k: jax.device_get(v) for k, v in batch.items()}
                 time_rollout = time.time() - t
                 # jax.profiler.save_device_memory_profile('/dev/shm/memory.prof')
