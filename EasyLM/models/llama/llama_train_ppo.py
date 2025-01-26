@@ -410,11 +410,6 @@ def main(argv):
     reference_model = FlaxLLaMAForCausalLM(llama_config_policy, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
     reward_model = FlaxLLaMAForSequenceClassification(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
 
-    for name, param in flax.core.unfreeze(policy_train_state.params).items():
-        print("Policy model parameter {} has shape: {}", name, param.shape)
-
-    for name, param in flax.core.unfreeze(value_train_state.params).items():
-        print("Value model parameter {} has shape: {}", name, param.shape)
 
         
     # for name, param in flax.core.unfreeze(policy_train_state.params).items():
@@ -619,6 +614,12 @@ def main(argv):
         else:
             if not FLAGS.use_tpu:
                 reward_params = flax.core.frozen_dict.unfreeze(reward_params)
+
+        for name, param in flax.core.unfreeze(policy_train_state.params).items():
+            print("Policy model parameter {} has shape: {}", name, param.shape)
+
+        for name, param in flax.core.unfreeze(value_train_state.params).items():
+            print("Value model parameter {} has shape: {}", name, param.shape)
 
         sharded_rng = next_rng()
 
