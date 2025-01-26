@@ -410,6 +410,19 @@ def main(argv):
     reference_model = FlaxLLaMAForCausalLM(llama_config_policy, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
     reward_model = FlaxLLaMAForSequenceClassification(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
 
+    for name, param in flax.core.unfreeze(policy_train_state.params).items():
+        print("Policy model parameter {} has shape: {}", name, param.shape)
+
+    for name, param in flax.core.unfreeze(value_train_state.params).items():
+        print("Value model parameter {} has shape: {}", name, param.shape)
+
+        
+    # for name, param in flax.core.unfreeze(policy_train_state.params).items():
+    #     print("Policy model parameter {} has shape: {}", name, param.shape)
+
+    # for name, param in flax.core.unfreeze(value_train_state.params).items():
+    #     print("Value model parameter {} has shape: {}", name, param.shape)
+
     print("Building optimizer...")
     FLAGS.optimizer.adamw_optimizer.init_lr = 0.0
     FLAGS.optimizer.adamw_optimizer.lr = FLAGS.lr
