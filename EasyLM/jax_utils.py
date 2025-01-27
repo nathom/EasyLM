@@ -33,8 +33,8 @@ def pad_tensor(tensor, target_divisor=4, axis=0, pad_value=0):
     Returns:
         The padded tensor.
     """
-    pad_shape = list(tensor.shape)
-    pad_shape[axis] = target_divisor * cdiv(tensor.shape[axis], target_divisor)
+    pad_shape = [(0,0)] * len(tensor.shape)
+    pad_shape[axis] = (0, target_divisor*cdiv(tensor.shape[axis], target_divisor))
     return jnp.pad(tensor, pad_shape, mode='constant', constant_values=pad_value)
 
 def cdiv(x, y):
