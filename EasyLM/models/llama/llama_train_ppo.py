@@ -334,7 +334,7 @@ def main(argv):
         enable=FLAGS.log_all_worker or (jax.process_index() == 0),
     )
     set_random_seed(FLAGS.seed)
-    
+
     print('loading tokenizer')
     tokenizer = PreTrainedTokenizerFast.from_pretrained(FLAGS.tokenizer, use_auth_token=os.getenv('HF_TOKEN', None), padding_side="left")
     print(f"Tokenizer vocabulary size: {len(tokenizer)}")
@@ -419,7 +419,7 @@ def main(argv):
     reward_model = FlaxLLaMAForSequenceClassification(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
 
 
-        
+
     # for name, param in flax.core.unfreeze(policy_train_state.params).items():
     #     print("Policy model parameter {} has shape: {}", name, param.shape)
 
@@ -447,7 +447,7 @@ def main(argv):
         return TrainState.create(params=params, tx=policy_optimizer, apply_fn=None)
     def create_trainstate_from_params_policy(params):
         return TrainState.create(params=params, tx=policy_optimizer, apply_fn=None)
-        
+
     train_state_shapes_policy = jax.eval_shape(init_fn_policy, next_rng()) # .params = {'params': {'transformer', 'lm_head'}} => .params = {'transformer', 'lm_head'}
     # pprint(flax.traverse_util.flatten_dict(train_state_shapes_policy.params).keys())
     # exit()
@@ -481,10 +481,10 @@ def main(argv):
         return TrainState.create(params=params, tx=value_optimizer, apply_fn=None)
     train_state_shapes_reward = jax.eval_shape(init_fn_reward, next_rng()) # .params = {'params': {'transformer', 'lm_head'}} => .params = {'transformer', 'lm_head'}
     train_state_partition_reward = match_partition_rules(LLaMAConfig.get_partition_rules(), train_state_shapes_reward)
-    
+
     # print("train_state_shapes_reward: ", train_state_shapes_reward)
     # print("train_state_partition_reward: ", train_state_partition_reward)
-    
+
     shard_fns_reward, gather_fns_reward = make_shard_and_gather_fns(train_state_partition_reward, train_state_shapes_reward)
     # print("train_state_shapes_reward: ", train_state_shapes_reward)
     # print("shared_init_fn_reward: ", shard_fns_reward)
@@ -667,7 +667,7 @@ def main(argv):
                     continue
 
                 t = time.time()
-                assert batch['input_ids'].shape[0] % FLAGS.mini_batch_size == 0
+                assert batch['input_ids'].shape[0] % FLAGS.mini_batch_size == 0, f"{batch['input_ids'].shape = }"
                 all_mbs, all_stats = [], []
                 for ppo_epoch in range(FLAGS.ppo_epochs):
                     for mb_start in range(0, batch['input_ids'].shape[0], FLAGS.mini_batch_size):
@@ -718,6 +718,6 @@ def main(argv):
 
 def main_cli():
     mlxu.run(main)
-    
+
 if __name__ == "__main__":
     main_cli()

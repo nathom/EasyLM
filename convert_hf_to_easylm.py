@@ -25,16 +25,16 @@ LLAMA_STANDARD_CONFIGS = {
         'norm_eps': 1e-5,
     },
     '3b32-rm': {
-        'dim': 3072,  
-        'intermediate_size': 8192,  
-        'n_layers': 28,  
-        'n_heads': 24,  
-        'n_kv_heads': 8,  
-        'norm_eps': 1e-5,  
-        'vocab_size': 128256,  
-        'rope_theta': 500000,  
-        'max_position_embeddings': 131072,  
-        'rope_scaling': {  
+        'dim': 3072,
+        'intermediate_size': 8192,
+        'n_layers': 28,
+        'n_heads': 24,
+        'n_kv_heads': 8,
+        'norm_eps': 1e-5,
+        'vocab_size': 128256,
+        'rope_theta': 500000,
+        'max_position_embeddings': 131072,
+        'rope_scaling': {
             "factor": 32.0,
             "low_freq_factor": 1.0,
             "high_freq_factor": 4.0,
@@ -147,7 +147,7 @@ def main(args):
                         ckpt[k] = f.get_tensor(key)
                     else:
                         ckpt[key] = f.get_tensor(key)
-                    
+
     else:
         ckpt_paths = sorted(Path(args.checkpoint_dir).glob("*.bin"))
         for i, ckpt_path in enumerate(ckpt_paths):
@@ -159,7 +159,7 @@ def main(args):
     print(f"Start convert weight to easylm format...")
     jax_weights = {
         "transformer": {
-            "wte": {"embedding": ckpt["embed_tokens.weight"].to(torch.float16).numpy()[:-8, :]},
+            "wte": {"embedding": ckpt["embed_tokens.weight"].to(torch.float16).numpy()},
             "ln_f": {"kernel": ckpt["norm.weight"].to(torch.float16).numpy()},
             "h": {
                 "%d"
@@ -285,4 +285,3 @@ if __name__ == "__main__":
     print(f"streaming: {args.streaming}")
 
     main(args)
-
