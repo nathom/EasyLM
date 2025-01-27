@@ -324,16 +324,16 @@ def ppo_forward_backward(
 def expand_embedding_cpu(params, new_vocab_size):
     """
     在 CPU (host) 端扩展 embedding 层。
-    params 通常是一个 Python dict (非分片数组)，可以用 NumPy 做原地操作。
+    这里 params 是一个普通的 Python 字典 (或解冻的 FrozenDict)，
+    里面的权重是 np.ndarray，而非分片的 jax.Array。
     """
     wte = params["transformer"]["wte"]
-    old_embed = wte["embedding"]  # 这里应该是一个 numpy.ndarray
+    old_embed = wte["embedding"]  # np.ndarray
     old_vocab_size, hidden_dim = old_embed.shape
 
     if old_vocab_size == new_vocab_size:
         return params
 
-    # 创建新的 embedding，并复制旧参数
     new_embed = np.zeros((new_vocab_size, hidden_dim), dtype=old_embed.dtype)
     new_embed[:old_vocab_size, :] = old_embed
     wte["embedding"] = new_embed
@@ -341,43 +341,52 @@ def expand_embedding_cpu(params, new_vocab_size):
 
 
 def load_and_expand_params(
-    checkpointer, checkpoint_path, train_state_shapes, shard_fns, 
-    sharded_create_trainstate_from_params, new_vocab_size, model_type
+    checkpointer,
+    checkpoint_path,
+    train_state_shapes,
+    shard_fns,
+    gather_fns,
+    sharded_create_trainstate_from_params,
+    new_vocab_size,
+    model_type
 ):
     """
-    1. 从 checkpoint 加载 train_state 或参数（可能是分片数组）；
-    2. 若已加载到完整的 train_state（分片），直接返回；
-    3. 否则 gather 到 CPU 并扩展 embedding；
-    4. 再用 sharded_create_trainstate_from_params 把扩展好的参数创建并分发回设备。
+    1) 从 checkpoint 加载可能是 (train_state, params)；分片的全局 Array 也可能出现；
+    2) 如果已经有分片 train_state，直接返回；
+    3) 如果只有 params，就用 gather_fns 把它全部拉到 CPU 上，再扩展 embedding；
+    4) 然后用 sharded_create_trainstate_from_params 分发回设备。
     """
-    print(f"Loading checkpoint ({model_type}) ... (may take time to download)")
+    print(f"Loading checkpoint ({model_type}) ...")
     train_state, params = checkpointer.load_trainstate_checkpoint(
         checkpoint_path,
         train_state_shapes,
-        shard_fns
+        shard_fns,
     )
     print(f"Checkpoint ({model_type}) loaded.")
 
-    # 若已经成功得到带分片的 TrainState，直接返回
+    # 如果已经拿到了完整的 TrainState（带分片），则无需处理
     if train_state is not None:
         return train_state
 
-    # 若什么都没加载到，则后面用 init_fn 去初始化
+    # 如果啥都没拿到，就让后续 init_fn 自己初始化
     if params is None:
         return None
 
-    # ---------- 1) gather 到 CPU 端 ----------
-    host_params = jax.device_get(params)  # 转成普通的 Python dict of np.array
+    # ============= 关键改动：用 gather_fns 而不是 jax.device_get =============
+    # 因为 params 可能是一个跨多主机分片的全局 Array，直接 device_get 会报错。
+    host_params = gather_fns(params)  # 返回普通的 Python dict / FrozenDict of np.ndarray
+
+    # 如果返回的是 FrozenDict，就先 unfreeze 才能修改
     host_params = flax.core.frozen_dict.unfreeze(host_params)
 
-    # ---------- 2) 在 CPU (host) 端扩展 embedding ----------
+    # 在 CPU 上扩展 embedding
     host_params["params"] = expand_embedding_cpu(host_params["params"], new_vocab_size)
 
-    # 可选：如果你希望再 freeze 回去也行
+    # （可选）最后再 freeze 回去
     host_params = flax.core.frozen_dict.freeze(host_params)
 
-    # ---------- 3) 让 sharded_create_trainstate_from_params
-    #     把 CPU 上的 host_params 分发回设备，创建新的 TrainState ----------
+    # 用 sharded_create_trainstate_from_params 把 CPU 上的 host_params
+    # 分发到设备并创建新的分片 TrainState
     train_state = sharded_create_trainstate_from_params(host_params)
     return train_state
 
@@ -628,6 +637,7 @@ def main(argv):
             checkpoint_path=FLAGS.load_checkpoint_policy,
             train_state_shapes=train_state_shapes_policy,
             shard_fns=shard_fns_policy,
+            gather_fns=gather_fns_policy,
             sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_policy,
             new_vocab_size=128256,
             model_type='policy'
@@ -641,6 +651,7 @@ def main(argv):
             checkpoint_path=FLAGS.load_checkpoint_reward,
             train_state_shapes=train_state_shapes_reward,
             shard_fns=shard_fns_reward,
+            gather_fns=gather_fns_reward,
             sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_reward,
             new_vocab_size=128256,
             model_type='value'
@@ -654,6 +665,7 @@ def main(argv):
             checkpoint_path=FLAGS.load_checkpoint_policy,  # 假设 reference 使用同样的 policy checkpoint
             train_state_shapes=train_state_shapes_policy,
             shard_fns=shard_fns_policy,
+            gather_fns=gather_fns_policy,
             sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_policy,
             new_vocab_size=128256,
             model_type='reference'
@@ -669,6 +681,7 @@ def main(argv):
             checkpoint_path=FLAGS.load_checkpoint_reward,  # 假设 reward 使用同样的 reward checkpoint
             train_state_shapes=train_state_shapes_reward,
             shard_fns=shard_fns_reward,
+            gather_fns=gather_fns_reward,
             sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_reward,
             new_vocab_size=128256,
             model_type='reward'
