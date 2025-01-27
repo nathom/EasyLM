@@ -23,26 +23,22 @@ from transformers import FlaxLogitsWarper
 def pad_tensor(tensor, target_divisor=4, axis=0, pad_value=0):
     """
     Pads the tensor on the specified axis to make its size a multiple of target_divisor.
-    
+
     Args:
         tensor: The JAX array to pad.
         target_divisor: The divisor to make the dimension size a multiple of.
         axis: The axis along which to pad.
         pad_value: The value to use for padding.
-        
+
     Returns:
         The padded tensor.
     """
-    # print('tensor:', tensor)
-    size = tensor.shape[axis]
-    remainder = size % target_divisor
-    if remainder == 0:
-        return tensor
-    padding = target_divisor - remainder
-    pad_width = [(0, 0)] * len(tensor.shape)
-    pad_width[axis] = (0, padding)
-    return jnp.pad(tensor, pad_width, mode='constant', constant_values=pad_value)
+    pad_shape = list(tensor.shape)
+    pad_shape[axis] = target_divisor * cdiv(tensor.shape[axis], target_divisor)
+    return jnp.pad(tensor, pad_shape, mode='constant', constant_values=pad_value)
 
+def cdiv(x, y):
+    return -(x//(-y))
 class JaxRNG(object):
     """ A convenient stateful Jax RNG wrapper. Can be used to wrap RNG inside
         pure function.
