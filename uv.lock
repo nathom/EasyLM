@@ -360,7 +360,7 @@ requires-dist = [
     { name = "datasets" },
     { name = "einops", specifier = ">=0.8.0" },
     { name = "flax" },
-    { name = "jax", extras = ["tpu"], specifier = ">=0.4.13" },
+    { name = "jax", extras = ["tpu"], specifier = "==0.4.13" },
     { name = "jax-smi" },
     { name = "mlxu" },
     { name = "numpy", specifier = "==1.26.4" },

@@ -120,9 +120,24 @@ class StreamingCheckpointer(object):
 
                 tensor = from_bytes(None, value)
                 if shard_fns is not None:
-                    # print(key)
-                    # print(shard_fns.keys())
+                    if key == ('score',):
+                        key = ('score', 'kernel')
+                        # for key_ in shard_fns.keys():
+                        #     print(key_)
+                
+                        # print(key)
+                        # print(shard_fns.keys())
                     tensor = shard_fns[key](tensor)
+                    # except:
+                    #     print("unpacker: ")
+                    #     for key in unpacker.keys():
+                    #         key = tuple(key)
+                    #         print(key)
+                    #     print("-"*50)
+                    #     print("shard_fns: ")
+                    #     for key in shard_fns.keys():
+                    #         print(key)
+
                 flattend_train_state[key] = tensor
 
         if target is not None:
@@ -204,6 +219,8 @@ class StreamingCheckpointer(object):
                 shard_fns=params_shard_fns,
                 keys_to_ignore=keys_to_ignore
             )
+            # if load_path == "gs://tdmpc-bucket/grm-llama3.2-3b/rm_weights.stream":
+            #     print(restored_params)
             restored_params = flax.core.frozen_dict.freeze(
                 {'params': restored_params}
             )

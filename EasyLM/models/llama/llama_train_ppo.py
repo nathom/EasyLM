@@ -4,7 +4,7 @@ import time
 from tqdm import tqdm, trange
 import copy
 import os
-
+import numpy as np
 import mlxu
 import jax
 import jax.numpy as jnp
@@ -191,6 +191,7 @@ def ppo_rollout(
 
     prompt_input_ids, prompt_attn_mask = batch['prompt_input_ids'], batch['prompt_attn_mask']
     PL = prompt_input_ids.shape[1]
+    print(PL)
 
     # rollout from current policy
     generation_config = GenerationConfig(
@@ -320,6 +321,137 @@ def ppo_forward_backward(
 
     return policy_train_state, value_train_state, rng_generator(), batch, stats
 
+import flax
+from flax.core import frozen_dict
+import numpy as np
+from functools import partial
+
+def expand_embedding_cpu(params: dict, new_vocab_size: int, embed_key='transformer/wte/embedding'):
+    """
+    在 CPU (host) 上扩展 embedding 层。这里的 `params` 是普通 dict (或解冻后的 FrozenDict)。
+    embed_key: 想要扩展的参数在字典中的键，如 'transformer/wte/embedding'.
+    """
+    # 找到 embedding
+    old_embed = params
+    for k in embed_key.split('/'):
+        old_embed = old_embed[k]
+
+    old_vocab_size, hidden_dim = old_embed.shape
+    if old_vocab_size >= new_vocab_size:
+        print(f"[expand_embedding_cpu] Skip: old_vocab_size={old_vocab_size} >= new_vocab_size={new_vocab_size}")
+        return params
+
+    # 构建新 embedding，并把旧的复制进去
+    new_embed = np.zeros((new_vocab_size, hidden_dim), dtype=old_embed.dtype)
+    new_embed[:old_vocab_size, :] = old_embed
+
+    # 回写到原字典
+    sub_dict = params
+    keys = embed_key.split('/')
+    for k in keys[:-1]:
+        sub_dict = sub_dict[k]
+    sub_dict[keys[-1]] = new_embed
+
+    print(f"[expand_embedding_cpu] Expanded embedding from {old_vocab_size} to {new_vocab_size}.")
+    return params
+
+
+def expand_embed_dims_in_trainstate(
+    train_state,
+    gather_fns,
+    new_vocab_size,
+    embed_key='transformer/wte/embedding',
+    shard_fns=None,
+    re_shard=False
+):
+    """
+    演示：
+      1) 用 gather_fns 收集分片在设备上的参数到 CPU；
+      2) 在 CPU 上扩展 embedding 维度；
+      3) （可选）使用 shard_fns 将扩展后的参数重新分片回设备。
+         如果 re_shard=False，则返回的是 CPU 上的参数。
+
+    Args:
+        train_state: 分片的 TrainState（或者类似结构），其中包含参数。
+        gather_fns: 与 train_state 同结构的 gather 函数，用于从设备收集参数。
+        new_vocab_size: 要扩展到的词表大小。
+        embed_key: embedding 参数在 dict 中的层次键，如 'transformer/wte/embedding'.
+        shard_fns: 与 train_state 同结构的 shard 函数（可选）。若 re_shard=True，需要它。
+        re_shard: 是否要将扩展后的参数再次分片到设备。
+
+    Returns:
+        如果 re_shard=True，则返回一个新的、分片后的 TrainState；
+        如果 re_shard=False，则返回已扩展 embedding、但还在 CPU 上的普通 dict。
+    """
+
+    # 1) 将 train_state 打平为 dict，方便遍历
+    flat_ts = flax.serialization.to_state_dict(train_state)
+    flat_ts = flax.traverse_util.flatten_dict(flat_ts, sep='/')  # {'params/transformer/wte/embedding': ...}
+
+    # 2) 同样将 gather_fns 打平
+    if gather_fns is not None:
+        flat_gather = flax.serialization.to_state_dict(gather_fns)
+        flat_gather = flax.traverse_util.flatten_dict(flat_gather, sep='/')
+    else:
+        flat_gather = {}
+
+    # 3) 遍历 train_state 中的每个参数，用 gather_fns 收集到 CPU
+    cpu_params = {}
+    for k, v in flat_ts.items():
+        if k in flat_gather:
+            gather_fn = flat_gather[k]
+            # gather_fn 会把分片的 v 收集到 CPU
+            cpu_params[k] = gather_fn(v)
+        else:
+            # 没有 gather_fns 就说明这个参数可能不是分片的，或者无需 gather
+            cpu_params[k] = v
+
+    # 4) 现在 cpu_params 是普通的 Python dict (key => np.ndarray or scalar)
+    #    接下来我们要找 embedding 并扩展
+    cpu_params = flax.traverse_util.unflatten_dict(cpu_params, sep='/')  # 先反扁平回层次结构
+
+    # 假设 embedding 在 cpu_params['params'] 下
+    # 例如 embed_key='transformer/wte/embedding' => 
+    # cpu_params['params']['transformer']['wte']['embedding']
+    # 所以:
+    if 'params' in cpu_params:
+        params_dict = cpu_params['params']
+    else:
+        # 如果你的结构不同，请自行调整
+        params_dict = cpu_params
+
+    params_dict = expand_embedding_cpu(params_dict, new_vocab_size, embed_key=embed_key)
+
+    # 5) 是否需要重新分片回设备
+    if not re_shard:
+        # 不重新分片，直接返回 CPU 上的数据（和其他信息）
+        cpu_params['params'] = params_dict
+        return cpu_params
+
+    # 否则，需要 shard_fns
+    if shard_fns is None:
+        raise ValueError("[expand_embed_dims_in_trainstate] re_shard=True but no shard_fns provided!")
+
+    # 将更新后的 params_dict 写回 cpu_params
+    cpu_params['params'] = params_dict
+
+    # 6) flatten 以便每个参数用 shard_fns[k] 分片
+    flat_cpu_params = flax.traverse_util.flatten_dict(cpu_params, sep='/')
+    flat_shard = flax.serialization.to_state_dict(shard_fns)
+    flat_shard = flax.traverse_util.flatten_dict(flat_shard, sep='/')
+
+    new_flat_ts = {}
+    for k, v in flat_cpu_params.items():
+        if k in flat_shard:
+            shard_fn = flat_shard[k]
+            new_flat_ts[k] = shard_fn(v)  # 分片
+        else:
+            new_flat_ts[k] = v  # 可能是标量或无需分片的值
+
+    # 7) unflatten 并复原成 TrainState 结构
+    new_unflat_ts = flax.traverse_util.unflatten_dict(new_flat_ts, sep='/')
+    new_train_state = flax.serialization.from_state_dict(train_state, new_unflat_ts)
+    return new_train_state
 
 def main(argv):
     # jax.distributed.initialize()
@@ -380,12 +512,20 @@ def main(argv):
         llama_config_policy = LLaMAConfig.load_config(FLAGS.load_llama_config_policy)
     else:
         llama_config_policy = LLaMAConfig(**FLAGS.llama)
+
     if FLAGS.update_llama_config_policy != '':
         llama_config_policy.update(dict(eval(FLAGS.update_llama_config_policy)))
-    llama_config_policy.update(dict(
-        bos_token_id=wrapped_dataset.tokenizer.bos_token_id,
-        eos_token_id=wrapped_dataset.tokenizer.eos_token_id,
-    ))
+
+    # 更新特殊标记和词汇表大小
+    llama_config_policy.update({
+        "bos_token_id": wrapped_dataset.tokenizer.bos_token_id,
+        "eos_token_id": wrapped_dataset.tokenizer.eos_token_id,
+        "vocab_size": len(tokenizer)  # 确保 vocab_size 与分词器一致
+    })
+
+    print(f"Updated model vocab_size (policy): {llama_config_policy.vocab_size}")
+    print(f"Tokenizer vocabulary size: {len(tokenizer)}")
+
     # if llama_config_policy.vocab_size < wrapped_dataset.vocab_size:
     #     llama_config_policy.update(dict(vocab_size=wrapped_dataset.vocab_size))
 
@@ -408,6 +548,14 @@ def main(argv):
     value_model = FlaxLLaMAForTokenRegression(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
     reference_model = FlaxLLaMAForCausalLM(llama_config_policy, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
     reward_model = FlaxLLaMAForSequenceClassification(llama_config_reward, dtype=get_float_dtype_by_name(FLAGS.dtype), _do_init=False)
+
+
+        
+    # for name, param in flax.core.unfreeze(policy_train_state.params).items():
+    #     print("Policy model parameter {} has shape: {}", name, param.shape)
+
+    # for name, param in flax.core.unfreeze(value_train_state.params).items():
+    #     print("Value model parameter {} has shape: {}", name, param.shape)
 
     print("Building optimizer...")
     FLAGS.optimizer.adamw_optimizer.init_lr = 0.0
@@ -464,6 +612,10 @@ def main(argv):
         return TrainState.create(params=params, tx=value_optimizer, apply_fn=None)
     train_state_shapes_reward = jax.eval_shape(init_fn_reward, next_rng()) # .params = {'params': {'transformer', 'lm_head'}} => .params = {'transformer', 'lm_head'}
     train_state_partition_reward = match_partition_rules(LLaMAConfig.get_partition_rules(), train_state_shapes_reward)
+    
+    # print("train_state_shapes_reward: ", train_state_shapes_reward)
+    # print("train_state_partition_reward: ", train_state_partition_reward)
+    
     shard_fns_reward, gather_fns_reward = make_shard_and_gather_fns(train_state_partition_reward, train_state_shapes_reward)
     # print("train_state_shapes_reward: ", train_state_shapes_reward)
     # print("shared_init_fn_reward: ", shard_fns_reward)
@@ -540,63 +692,85 @@ def main(argv):
         )
 
     mesh = LLaMAConfig.get_jax_mesh(FLAGS.mesh_dim)
+
     with mesh:
         # Load policy
-        policy_train_state, policy_params = None, None
-        if FLAGS.load_checkpoint_policy != '':
-            print("Loading checkpoint (policy) ... (may take time to download)")
-            policy_train_state, policy_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_policy, train_state_shapes_policy, shard_fns_policy)
-            print("Checkpoint (policy) loaded.")
+        policy_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_policy,
+            train_state_shapes=train_state_shapes_policy,
+            shard_fns=shard_fns_policy,
+            gather_fns=gather_fns_policy,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_policy,
+            new_vocab_size=128256,
+            model_type='policy'
+        )
         if policy_train_state is None:
-            if policy_params is None:
-                policy_train_state = sharded_init_fn_policy(next_rng())
-            else:
-                # if not FLAGS.use_tpu:
-                #     policy_params = flax.core.frozen_dict.unfreeze(policy_params)
-                policy_params = flax.core.frozen_dict.unfreeze(policy_params)
-                policy_train_state = sharded_create_trainstate_from_params_policy(policy_params)
-                del policy_params
+            policy_train_state = sharded_init_fn_policy(next_rng())
 
         # Load value
-        value_train_state, value_params = None, None
-        if FLAGS.load_checkpoint_reward != '':
-            print("Loading checkpoint (value) ... (may take time to download)")
-            value_train_state, value_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_reward, train_state_shapes_reward, shard_fns_reward)
-            print("Checkpoint (value) loaded.")
+        value_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_reward,
+            train_state_shapes=train_state_shapes_reward,
+            shard_fns=shard_fns_reward,
+            gather_fns=gather_fns_reward,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_reward,
+            new_vocab_size=128256,
+            model_type='value'
+        )
         if value_train_state is None:
-            if value_params is None:
-                value_train_state = sharded_init_fn_reward(next_rng())
-            else:
-                if not FLAGS.use_tpu:
-                    value_params = flax.core.frozen_dict.unfreeze(value_params)
-                value_train_state = sharded_create_trainstate_from_params_reward(value_params)
-                del value_params
+            value_train_state = sharded_init_fn_reward(next_rng())
 
-        # Load reference
-        reference_params = None
-        if FLAGS.load_checkpoint_policy != '':
-            print("Loading checkpoint (reference) ... (may take time to download)")
-            reference_train_state, reference_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_policy, train_state_shapes_policy, shard_fns_policy)
-            print("Checkpoint (reference) loaded.")
-            assert reference_train_state is None
-        if reference_params is None:
+        # Load references
+        reference_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_policy,  # 假设 reference 使用同样的 policy checkpoint
+            train_state_shapes=train_state_shapes_policy,
+            shard_fns=shard_fns_policy,
+            gather_fns=gather_fns_policy,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_policy,
+            new_vocab_size=128256,
+            model_type='reference'
+        )
+        if reference_train_state is None:
             reference_params = copy.deepcopy(policy_train_state.params)
         else:
-            if not FLAGS.use_tpu:
-                reference_params = flax.core.frozen_dict.unfreeze(reference_params)
+            reference_params = reference_train_state.params
 
         # Load reward
-        reward_params = None
-        if FLAGS.load_checkpoint_reward != '':
-            print("Loading checkpoint (reward) ... (may take time to download)")
-            reward_train_state, reward_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_reward, train_state_shapes_reward, shard_fns_reward)
-            print("Checkpoint (reward) loaded.")
-            assert reward_train_state is None
-        if reward_params is None:
+        reward_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_reward,  # 假设 reward 使用同样的 reward checkpoint
+            train_state_shapes=train_state_shapes_reward,
+            shard_fns=shard_fns_reward,
+            gather_fns=gather_fns_reward,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_reward,
+            new_vocab_size=128256,
+            model_type='reward'
+        )
+        if reward_train_state is None:
             reward_params = copy.deepcopy(value_train_state.params)
         else:
-            if not FLAGS.use_tpu:
-                reward_params = flax.core.frozen_dict.unfreeze(reward_params)
+            reward_params = reward_train_state.params
+
+        # 如果从 checkpoint 加载了 reference 或 reward，确保它们是解冻的
+        if reference_train_state is not None and not FLAGS.use_tpu:
+            reference_params = flax.core.frozen_dict.unfreeze(reference_params)
+        if reward_train_state is not None and not FLAGS.use_tpu:
+            reward_params = flax.core.frozen_dict.unfreeze(reward_params)
+
+        def print_param_shapes(params, prefix='', model=''):
+            if isinstance(params, dict):
+                for name, param in params.items():
+                    new_prefix = f"{prefix}.{name}" if prefix else name
+                    print_param_shapes(param, new_prefix, model)
+            else:
+                print(f"{model} model parameter '{prefix}' has shape: {params.shape}")
+
+        # 调用函数打印所有参数的形状
+        print_param_shapes(policy_train_state.params, model='policy')
+        print_param_shapes(value_train_state.params, model='value')
 
         sharded_rng = next_rng()
 
@@ -613,7 +787,7 @@ def main(argv):
                 t = time.time()
                 sharded_rng, batch = sharded_ppo_rollout(policy_train_state, sharded_rng, batch)
                 batch['cont_position_ids'].block_until_ready()
-                # If we do not use jax.device_get() to convert into numpy array first, we will get an error when iterating a sharded array with dim >= 100
+                # If we do not use jax.device_get() to convert intw o numpy array first, we will get an error when iterating a sharded array with dim >= 100
                 batch = {k: jax.device_get(v) for k, v in batch.items()}
                 time_rollout = time.time() - t
                 # jax.profiler.save_device_memory_profile('/dev/shm/memory.prof')
