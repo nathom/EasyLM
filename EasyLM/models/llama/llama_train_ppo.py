@@ -321,6 +321,84 @@ def ppo_forward_backward(
 
     return policy_train_state, value_train_state, rng_generator(), batch, stats
 
+def expand_embedding(params, new_vocab_size):
+    """
+    给定一组解冻后的 params（比如 policy_params['params']），
+    将 transformer.wte.embedding 的第一维扩展到 new_vocab_size。
+    仅当 old_vocab_size < new_vocab_size 时执行。
+    """
+    wte = params["transformer"]["wte"]
+    old_embed = wte["embedding"]  # shape like (128248, hidden_dim)
+    old_vocab_size, hidden_dim = old_embed.shape
+
+    # 如果已经是新大小就不用动
+    if old_vocab_size == new_vocab_size:
+        return params
+
+    # 创建新的 embedding，并将旧权重拷入前面部分
+    new_embed = jnp.zeros((new_vocab_size, hidden_dim), dtype=old_embed.dtype)
+    new_embed = new_embed.at[:old_vocab_size, :].set(old_embed)
+
+    wte["embedding"] = new_embed
+    return params
+
+
+def load_and_expand_params_for_policy(checkpointer, checkpoint_path, 
+                                      train_state_shapes_policy, shard_fns_policy, 
+                                      sharded_create_trainstate_from_params_policy,
+                                      new_vocab_size):
+    """
+    加载 policy 的 checkpoint，如果 embedding 大小比 new_vocab_size 小，则扩展之。
+    """
+    policy_train_state, policy_params = checkpointer.load_trainstate_checkpoint(
+        checkpoint_path,
+        train_state_shapes_policy,
+        shard_fns_policy
+    )
+
+    if policy_train_state is not None:
+        # 说明已经直接成功加载到了完整的 TrainState（分片过的），不需要再处理
+        return policy_train_state
+
+    # 否则我们只加载到了参数，需要自己初始化一个新的 TrainState
+    if policy_params is None:
+        # 没有加载到任何东西，那么让后续代码去 init_fn 初始化即可
+        return None
+
+    # 先把 FrozenDict 转成可修改的 dict
+    policy_params = flax.core.frozen_dict.unfreeze(policy_params)
+
+    # 只需要改动 policy 的 embedding
+    policy_params["params"] = expand_embedding(policy_params["params"], new_vocab_size)
+
+    # 再构建新的 TrainState
+    policy_train_state = sharded_create_trainstate_from_params_policy(policy_params)
+    return policy_train_state
+
+
+def load_and_expand_params_for_value(checkpointer, checkpoint_path, 
+                                     train_state_shapes_value, shard_fns_value, 
+                                     sharded_create_trainstate_from_params_value,
+                                     new_vocab_size):
+    """
+    加载 value 的 checkpoint，如果 embedding 大小比 new_vocab_size 小，则扩展之。
+    """
+    value_train_state, value_params = checkpointer.load_trainstate_checkpoint(
+        checkpoint_path,
+        train_state_shapes_value,
+        shard_fns_value
+    )
+
+    if value_train_state is not None:
+        return value_train_state
+
+    if value_params is None:
+        return None
+
+    value_params = flax.core.frozen_dict.unfreeze(value_params)
+    value_params["params"] = expand_embedding(value_params["params"], new_vocab_size)
+    value_train_state = sharded_create_trainstate_from_params_value(value_params)
+    return value_train_state
 
 def main(argv):
     # jax.distributed.initialize()
@@ -561,67 +639,104 @@ def main(argv):
         )
 
     mesh = LLaMAConfig.get_jax_mesh(FLAGS.mesh_dim)
+    def expand_embedding(params, new_vocab_size):
+        wte = params["transformer"]["wte"]
+        old_embed = wte["embedding"]
+        old_vocab_size, hidden_dim = old_embed.shape
+
+        if old_vocab_size == new_vocab_size:
+            return params
+
+        new_embed = jnp.zeros((new_vocab_size, hidden_dim), dtype=old_embed.dtype)
+        new_embed = new_embed.at[:old_vocab_size, :].set(old_embed)
+
+        wte["embedding"] = new_embed
+        return params
+
+    def load_and_expand_params(
+        checkpointer, checkpoint_path, train_state_shapes, shard_fns, 
+        sharded_create_trainstate_from_params, new_vocab_size, model_type
+    ):
+        print(f"Loading checkpoint ({model_type}) ... (may take time to download)")
+        train_state, params = checkpointer.load_trainstate_checkpoint(
+            checkpoint_path,
+            train_state_shapes,
+            shard_fns
+        )
+        print(f"Checkpoint ({model_type}) loaded.")
+        if train_state is not None:
+            return train_state
+
+        if params is None:
+            return None
+
+        params = flax.core.frozen_dict.unfreeze(params)
+        params["params"] = expand_embedding(params["params"], new_vocab_size)
+        train_state = sharded_create_trainstate_from_params(params)
+        return train_state
+
     with mesh:
         # Load policy
-        policy_train_state, policy_params = None, None
-        if FLAGS.load_checkpoint_policy != '':
-            print("Loading checkpoint (policy) ... (may take time to download)")
-            policy_train_state, policy_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_policy, train_state_shapes_policy, shard_fns_policy)
-            print("Checkpoint (policy) loaded.")
+        policy_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_policy,
+            train_state_shapes=train_state_shapes_policy,
+            shard_fns=shard_fns_policy,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_policy,
+            new_vocab_size=128256,
+            model_type='policy'
+        )
         if policy_train_state is None:
-            if policy_params is None:
-                policy_train_state = sharded_init_fn_policy(next_rng())
-            else:
-                # if not FLAGS.use_tpu:
-                #     policy_params = flax.core.frozen_dict.unfreeze(policy_params)
-                policy_params = flax.core.frozen_dict.unfreeze(policy_params)
-                policy_train_state = sharded_create_trainstate_from_params_policy(policy_params)
-                del policy_params
+            policy_train_state = sharded_init_fn_policy(next_rng())
 
         # Load value
-        value_train_state, value_params = None, None
-        if FLAGS.load_checkpoint_reward != '':
-            print("Loading checkpoint (value) ... (may take time to download)")
-            value_train_state, value_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_reward, train_state_shapes_reward, shard_fns_reward)
-            print("Checkpoint (value) loaded.")
+        value_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_reward,
+            train_state_shapes=train_state_shapes_reward,
+            shard_fns=shard_fns_reward,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_reward,
+            new_vocab_size=128256,
+            model_type='value'
+        )
         if value_train_state is None:
-            if value_params is None:
-                value_train_state = sharded_init_fn_reward(next_rng())
-            else:
-                if not FLAGS.use_tpu:
-                    value_params = flax.core.frozen_dict.unfreeze(value_params)
-                # print(value_params)
-                # for key in value_params.keys():
-                #     print(f"key{key} type is {type(key)}")
-                value_params = flax.core.frozen_dict.unfreeze(value_params)
-                value_train_state = sharded_create_trainstate_from_params_reward(value_params)
-                del value_params
+            value_train_state = sharded_init_fn_reward(next_rng())
 
         # Load references
-        reference_params = None
-        if FLAGS.load_checkpoint_policy != '':
-            print("Loading checkpoint (reference) ... (may take time to download)")
-            reference_train_state, reference_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_policy, train_state_shapes_policy, shard_fns_policy)
-            print("Checkpoint (reference) loaded.")
-            assert reference_train_state is None
-        if reference_params is None:
+        reference_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_policy,  # 假设 reference 使用同样的 policy checkpoint
+            train_state_shapes=train_state_shapes_policy,
+            shard_fns=shard_fns_policy,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_policy,
+            new_vocab_size=128256,
+            model_type='reference'
+        )
+        if reference_train_state is None:
             reference_params = copy.deepcopy(policy_train_state.params)
         else:
-            if not FLAGS.use_tpu:
-                reference_params = flax.core.frozen_dict.unfreeze(reference_params)
+            reference_params = reference_train_state.params
 
         # Load reward
-        reward_params = None
-        if FLAGS.load_checkpoint_reward != '':
-            print("Loading checkpoint (reward) ... (may take time to download)")
-            reward_train_state, reward_params = checkpointer.load_trainstate_checkpoint(FLAGS.load_checkpoint_reward, train_state_shapes_reward, shard_fns_reward)
-            print("Checkpoint (reward) loaded.")
-            assert reward_train_state is None
-        if reward_params is None:
+        reward_train_state = load_and_expand_params(
+            checkpointer=checkpointer,
+            checkpoint_path=FLAGS.load_checkpoint_reward,  # 假设 reward 使用同样的 reward checkpoint
+            train_state_shapes=train_state_shapes_reward,
+            shard_fns=shard_fns_reward,
+            sharded_create_trainstate_from_params=sharded_create_trainstate_from_params_reward,
+            new_vocab_size=128256,
+            model_type='reward'
+        )
+        if reward_train_state is None:
             reward_params = copy.deepcopy(value_train_state.params)
         else:
-            if not FLAGS.use_tpu:
-                reward_params = flax.core.frozen_dict.unfreeze(reward_params)
+            reward_params = reward_train_state.params
+
+        # 如果从 checkpoint 加载了 reference 或 reward，确保它们是解冻的
+        if reference_train_state is not None and not FLAGS.use_tpu:
+            reference_params = flax.core.frozen_dict.unfreeze(reference_params)
+        if reward_train_state is not None and not FLAGS.use_tpu:
+            reward_params = flax.core.frozen_dict.unfreeze(reward_params)
 
         def print_param_shapes(params, prefix='', model=''):
             if isinstance(params, dict):
