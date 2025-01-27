@@ -321,74 +321,137 @@ def ppo_forward_backward(
 
     return policy_train_state, value_train_state, rng_generator(), batch, stats
 
-def expand_embedding_cpu(params, new_vocab_size):
-    """
-    在 CPU (host) 端扩展 embedding 层。
-    这里 params 是一个普通的 Python 字典 (或解冻的 FrozenDict)，
-    里面的权重是 np.ndarray，而非分片的 jax.Array。
-    """
-    wte = params["transformer"]["wte"]
-    old_embed = wte["embedding"]  # np.ndarray
-    old_vocab_size, hidden_dim = old_embed.shape
+import flax
+from flax.core import frozen_dict
+import numpy as np
+from functools import partial
 
-    if old_vocab_size == new_vocab_size:
+def expand_embedding_cpu(params: dict, new_vocab_size: int, embed_key='transformer/wte/embedding'):
+    """
+    在 CPU (host) 上扩展 embedding 层。这里的 `params` 是普通 dict (或解冻后的 FrozenDict)。
+    embed_key: 想要扩展的参数在字典中的键，如 'transformer/wte/embedding'.
+    """
+    # 找到 embedding
+    old_embed = params
+    for k in embed_key.split('/'):
+        old_embed = old_embed[k]
+
+    old_vocab_size, hidden_dim = old_embed.shape
+    if old_vocab_size >= new_vocab_size:
+        print(f"[expand_embedding_cpu] Skip: old_vocab_size={old_vocab_size} >= new_vocab_size={new_vocab_size}")
         return params
 
+    # 构建新 embedding，并把旧的复制进去
     new_embed = np.zeros((new_vocab_size, hidden_dim), dtype=old_embed.dtype)
     new_embed[:old_vocab_size, :] = old_embed
-    wte["embedding"] = new_embed
+
+    # 回写到原字典
+    sub_dict = params
+    keys = embed_key.split('/')
+    for k in keys[:-1]:
+        sub_dict = sub_dict[k]
+    sub_dict[keys[-1]] = new_embed
+
+    print(f"[expand_embedding_cpu] Expanded embedding from {old_vocab_size} to {new_vocab_size}.")
     return params
 
 
-def load_and_expand_params(
-    checkpointer,
-    checkpoint_path,
-    train_state_shapes,
-    shard_fns,
+def expand_embed_dims_in_trainstate(
+    train_state,
     gather_fns,
-    sharded_create_trainstate_from_params,
     new_vocab_size,
-    model_type
+    embed_key='transformer/wte/embedding',
+    shard_fns=None,
+    re_shard=False
 ):
     """
-    1) 从 checkpoint 加载可能是 (train_state, params)；分片的全局 Array 也可能出现；
-    2) 如果已经有分片 train_state，直接返回；
-    3) 如果只有 params，就用 gather_fns 把它全部拉到 CPU 上，再扩展 embedding；
-    4) 然后用 sharded_create_trainstate_from_params 分发回设备。
+    演示：
+      1) 用 gather_fns 收集分片在设备上的参数到 CPU；
+      2) 在 CPU 上扩展 embedding 维度；
+      3) （可选）使用 shard_fns 将扩展后的参数重新分片回设备。
+         如果 re_shard=False，则返回的是 CPU 上的参数。
+
+    Args:
+        train_state: 分片的 TrainState（或者类似结构），其中包含参数。
+        gather_fns: 与 train_state 同结构的 gather 函数，用于从设备收集参数。
+        new_vocab_size: 要扩展到的词表大小。
+        embed_key: embedding 参数在 dict 中的层次键，如 'transformer/wte/embedding'.
+        shard_fns: 与 train_state 同结构的 shard 函数（可选）。若 re_shard=True，需要它。
+        re_shard: 是否要将扩展后的参数再次分片到设备。
+
+    Returns:
+        如果 re_shard=True，则返回一个新的、分片后的 TrainState；
+        如果 re_shard=False，则返回已扩展 embedding、但还在 CPU 上的普通 dict。
     """
-    print(f"Loading checkpoint ({model_type}) ...")
-    train_state, params = checkpointer.load_trainstate_checkpoint(
-        checkpoint_path,
-        train_state_shapes,
-        shard_fns,
-    )
-    print(f"Checkpoint ({model_type}) loaded.")
 
-    # 如果已经拿到了完整的 TrainState（带分片），则无需处理
-    if train_state is not None:
-        return train_state
+    # 1) 将 train_state 打平为 dict，方便遍历
+    flat_ts = flax.serialization.to_state_dict(train_state)
+    flat_ts = flax.traverse_util.flatten_dict(flat_ts, sep='/')  # {'params/transformer/wte/embedding': ...}
 
-    # 如果啥都没拿到，就让后续 init_fn 自己初始化
-    if params is None:
-        return None
+    # 2) 同样将 gather_fns 打平
+    if gather_fns is not None:
+        flat_gather = flax.serialization.to_state_dict(gather_fns)
+        flat_gather = flax.traverse_util.flatten_dict(flat_gather, sep='/')
+    else:
+        flat_gather = {}
 
-    # ============= 关键改动：用 gather_fns 而不是 jax.device_get =============
-    # 因为 params 可能是一个跨多主机分片的全局 Array，直接 device_get 会报错。
-    host_params = gather_fns(params)  # 返回普通的 Python dict / FrozenDict of np.ndarray
+    # 3) 遍历 train_state 中的每个参数，用 gather_fns 收集到 CPU
+    cpu_params = {}
+    for k, v in flat_ts.items():
+        if k in flat_gather:
+            gather_fn = flat_gather[k]
+            # gather_fn 会把分片的 v 收集到 CPU
+            cpu_params[k] = gather_fn(v)
+        else:
+            # 没有 gather_fns 就说明这个参数可能不是分片的，或者无需 gather
+            cpu_params[k] = v
 
-    # 如果返回的是 FrozenDict，就先 unfreeze 才能修改
-    host_params = flax.core.frozen_dict.unfreeze(host_params)
+    # 4) 现在 cpu_params 是普通的 Python dict (key => np.ndarray or scalar)
+    #    接下来我们要找 embedding 并扩展
+    cpu_params = flax.traverse_util.unflatten_dict(cpu_params, sep='/')  # 先反扁平回层次结构
 
-    # 在 CPU 上扩展 embedding
-    host_params["params"] = expand_embedding_cpu(host_params["params"], new_vocab_size)
+    # 假设 embedding 在 cpu_params['params'] 下
+    # 例如 embed_key='transformer/wte/embedding' => 
+    # cpu_params['params']['transformer']['wte']['embedding']
+    # 所以:
+    if 'params' in cpu_params:
+        params_dict = cpu_params['params']
+    else:
+        # 如果你的结构不同，请自行调整
+        params_dict = cpu_params
 
-    # （可选）最后再 freeze 回去
-    host_params = flax.core.frozen_dict.freeze(host_params)
+    params_dict = expand_embedding_cpu(params_dict, new_vocab_size, embed_key=embed_key)
 
-    # 用 sharded_create_trainstate_from_params 把 CPU 上的 host_params
-    # 分发到设备并创建新的分片 TrainState
-    train_state = sharded_create_trainstate_from_params(host_params)
-    return train_state
+    # 5) 是否需要重新分片回设备
+    if not re_shard:
+        # 不重新分片，直接返回 CPU 上的数据（和其他信息）
+        cpu_params['params'] = params_dict
+        return cpu_params
+
+    # 否则，需要 shard_fns
+    if shard_fns is None:
+        raise ValueError("[expand_embed_dims_in_trainstate] re_shard=True but no shard_fns provided!")
+
+    # 将更新后的 params_dict 写回 cpu_params
+    cpu_params['params'] = params_dict
+
+    # 6) flatten 以便每个参数用 shard_fns[k] 分片
+    flat_cpu_params = flax.traverse_util.flatten_dict(cpu_params, sep='/')
+    flat_shard = flax.serialization.to_state_dict(shard_fns)
+    flat_shard = flax.traverse_util.flatten_dict(flat_shard, sep='/')
+
+    new_flat_ts = {}
+    for k, v in flat_cpu_params.items():
+        if k in flat_shard:
+            shard_fn = flat_shard[k]
+            new_flat_ts[k] = shard_fn(v)  # 分片
+        else:
+            new_flat_ts[k] = v  # 可能是标量或无需分片的值
+
+    # 7) unflatten 并复原成 TrainState 结构
+    new_unflat_ts = flax.traverse_util.unflatten_dict(new_flat_ts, sep='/')
+    new_train_state = flax.serialization.from_state_dict(train_state, new_unflat_ts)
+    return new_train_state
 
 def main(argv):
     # jax.distributed.initialize()
