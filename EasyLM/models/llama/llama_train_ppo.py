@@ -609,6 +609,7 @@ def main(argv):
         else:
             if not FLAGS.use_tpu:
                 reference_params = flax.core.frozen_dict.unfreeze(reference_params)
+            reference_params = flax.core.frozen_dict.unfreeze(reference_params)
 
         # Load reward
         reward_params = None
@@ -622,6 +623,7 @@ def main(argv):
         else:
             if not FLAGS.use_tpu:
                 reward_params = flax.core.frozen_dict.unfreeze(reward_params)
+            reward_params = flax.core.frozen_dict.unfreeze(reward_params)
 
         def print_param_shapes(params, prefix='', model=''):
             if isinstance(params, dict):
