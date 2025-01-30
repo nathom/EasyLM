@@ -65,7 +65,7 @@ LLAMA_STANDARD_CONFIGS = {
         'use_scaled_rope': True
     },
     '3b32': {
-        'vocab_size': 128257,
+        'vocab_size': 128260, # 128257 -> 128260 for padding by 4
         'hidden_size': 3072,
         'intermediate_size': 8192,
         'num_hidden_layers': 28,
@@ -1760,7 +1760,7 @@ class LlamaTokenizerFast(PreTrainedTokenizerFast):
     ):
         self.add_bos_token = add_bos_token
         super().__init__(**kwargs)
-        
+
     def encode(self, text):
         if self.add_bos_token:
             text = self.bos_token + text

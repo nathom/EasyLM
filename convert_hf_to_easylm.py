@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 import argparse
 
+import json
 import mlxu
 import torch
 import flax
@@ -61,6 +62,13 @@ LLAMA_STANDARD_CONFIGS = {
         },
     },
     '3b': {
+        'dim': 3200,
+        'intermediate_size': 8640,
+        'n_layers': 26,
+        'n_heads': 32,
+        'norm_eps': 1e-6,
+    },
+    '3b-rm': {
         'dim': 3200,
         'intermediate_size': 8640,
         'n_layers': 26,
@@ -157,6 +165,19 @@ def main(args):
                     k = k[6:]
                 ckpt[k] = v
     print(f"Start convert weight to easylm format...")
+
+    vocab_size, embed_dim = ckpt['embed_tokens.weight'].shape
+    pad_size = (args.pad_embed_table_to - vocab_size % args.pad_embed_table_to) % args.pad_embed_table_to
+    if pad_size > 0:
+        padding = torch.zeros(pad_size, embed_dim)
+        ckpt["embed_tokens.weight"] = torch.cat([ckpt["embed_tokens.weight"], padding], dim=0)
+        config_path = Path(args.checkpoint_dir) / "config.json"
+        with open(config_path) as f:
+            config = json.load(f)
+        config["vocab_size"] = ckpt["embed_tokens.weight"].shape[0]
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+
     jax_weights = {
         "transformer": {
             "wte": {"embedding": ckpt["embed_tokens.weight"].to(torch.float16).numpy()},
@@ -275,6 +296,12 @@ if __name__ == "__main__":
         '--use_safetensors',
         action='store_true',
         help='Load SafeTensors for model weights',
+    )
+    parser.add_argument(
+        "--pad_embed_table_to",
+        type=int,
+        default=4,
+        help="pad embed table to nearest multiple of 4",
     )
 
     args = parser.parse_args()
