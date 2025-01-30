@@ -240,6 +240,9 @@ def ppo_forward_backward(
     rng, batch, tokenizer,
 ):
     rng_generator = JaxRNG(rng)
+    """
+    the batch is from ppo_rollout.
+    """
     batch = with_sharding_constraint(batch, PS(('dp', 'fsdp')))
 
     input_ids, attn_mask = batch['input_ids'], batch['attn_mask']
